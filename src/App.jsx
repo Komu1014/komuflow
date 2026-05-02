@@ -1,4 +1,18 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+
+/* ── Firebase setup ── */
+const firebaseConfig = {
+  apiKey: "AIzaSyAajoteZIuZSB8LsM87wzaPtg43xiI92b8",
+  authDomain: "komu-timeflow.firebaseapp.com",
+  projectId: "komu-timeflow",
+  storageBucket: "komu-timeflow.firebasestorage.app",
+  messagingSenderId: "698782559506",
+  appId: "1:698782559506:web:6de2beed65ba325c0957cb",
+};
+const fbApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+export const db = getFirestore(fbApp);
 const uuid = () => Math.random().toString(36).slice(2,10);
 const pad = n => String(n).padStart(2,"0");
 const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -35,12 +49,106 @@ const HOLIDAYS = (() => {
   return h;
 })();
 
-/* ── storage ── */
-function useStore(key,def){
-  const [v,set]=useState(()=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):def;}catch{return def;}});
-  useEffect(()=>{try{localStorage.setItem(key,JSON.stringify(v));}catch{};},[key,v]);
-  return [v,set];
+/* ── storage (Firebase Firestore + localStorage fallback) ── */
+const _syncListeners = new Set();
+let _syncStatus = "init";
+function setSyncStatus(s){ _syncStatus=s; _syncListeners.forEach(fn=>fn(s)); }
+function useSyncStatus(){ const [s,set]=useState(_syncStatus); useEffect(()=>{ set(_syncStatus); _syncListeners.add(set); return()=>_syncListeners.delete(set); },[]); return s; }
+
+function useDebounce(fn, delay){
+  const timerRef=useRef(null);
+  const fnRef=useRef(fn);
+  useEffect(()=>{ fnRef.current=fn; },[fn]);
+  return useCallback((...args)=>{
+    if(timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current=setTimeout(()=>{ fnRef.current(...args); },delay);
+  },[delay]);
 }
+
+const USER_DOC = "shared_user";
+
+function useFirestore(key, def) {
+  const [v, set] = useState(() => {
+    try { const s=localStorage.getItem(key); return s?JSON.parse(s):def; } catch { return def; }
+  });
+  const remoteReadRef = useRef(false);
+  // Use a counter instead of a boolean to correctly handle rapid successive writes.
+  // Each write increments the counter; each snapshot consumed by this client decrements it.
+  // Only when the counter is 0 do we treat an incoming snapshot as a remote change.
+  const pendingWritesRef = useRef(0);
+
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+  }, [key, v]);
+
+  const writeToFirestore = useDebounce((val) => {
+    setSyncStatus("saving");
+    pendingWritesRef.current += 1;
+    setDoc(doc(db, "komu_data", USER_DOC), { [key]: JSON.stringify(val) }, { merge: true })
+      .then(() => { setSyncStatus("ok"); })
+      .catch(() => {
+        setSyncStatus("error");
+        // On failure, decrement so the next real remote snapshot isn't blocked.
+        pendingWritesRef.current = Math.max(0, pendingWritesRef.current - 1);
+      });
+  }, 800);
+
+  useEffect(() => {
+    setSyncStatus("init");
+    const ref = doc(db, "komu_data", USER_DOC);
+
+    // Initial fetch: load remote data once on mount (highest priority over localStorage).
+    getDoc(ref).then(snap => {
+      if (snap.exists()) {
+        const raw = snap.data()[key];
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            set(parsed);
+            try { localStorage.setItem(key, raw); } catch {}
+          } catch {}
+        }
+      }
+      remoteReadRef.current = true;
+      setSyncStatus("ok");
+    }).catch(() => {
+      remoteReadRef.current = true;
+      setSyncStatus("error");
+    });
+
+    // Real-time listener: only apply updates from *other* clients.
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists() || !remoteReadRef.current) return;
+      if (pendingWritesRef.current > 0) {
+        // This snapshot was triggered by our own write — consume it and skip.
+        pendingWritesRef.current -= 1;
+        return;
+      }
+      // This snapshot came from another device — apply it.
+      const raw = snap.data()[key];
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          set(parsed);
+          try { localStorage.setItem(key, raw); } catch {}
+        } catch {}
+      }
+    }, () => { setSyncStatus("error"); });
+
+    return () => unsub();
+  }, [key]);
+
+  const setAndSync = useCallback((updater) => {
+    set(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (remoteReadRef.current) writeToFirestore(next);
+      return next;
+    });
+  }, [writeToFirestore]);
+
+  return [v, setAndSync];
+}
+const useStore = useFirestore;
 
 /* ── default labels ── */
 const DEF_LABELS=[
@@ -2279,11 +2387,21 @@ export default function App(){
     setModal(null);
   };
 
+  const syncStatus = useSyncStatus();
+  const SyncDot = () => {
+    const cfg = {
+      init: {color:"#8e8e93", title:"连接中…", pulse:true},
+      ok:   {color:"#34C759", title:"已同步", pulse:false},
+      saving:{color:"#FF9500", title:"同步中…", pulse:true},
+      error:{color:"#FF3B30", title:"同步失败（离线模式）", pulse:false},
+    }[syncStatus] || {color:"#8e8e93", title:"", pulse:false};
+    return <div title={cfg.title} style={{width:7,height:7,borderRadius:"50%",background:cfg.color,flexShrink:0,boxShadow:cfg.pulse?"0 0 0 2px "+cfg.color+"44":"none",transition:"background 0.4s"}}/>;
+  };
   const TN={today:"今天",calendar:"日历",stats:"统计"};
 
   const page=<div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
     {!desk&&<div style={{padding:"14px 18px 6px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontSize:24,fontWeight:900,color:"#111",letterSpacing:-0.5}}>{TN[tab]}</div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{fontSize:24,fontWeight:900,color:"#111",letterSpacing:-0.5}}>{TN[tab]}</div><SyncDot/></div>
       <div style={{display:"flex",gap:7}}>
         <button onClick={()=>setModal({t:"labels"})} style={{border:"1.5px solid #e8e8e8",background:"white",borderRadius:10,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>标签</button>
         {/* 今日页面不显示右上角新建按钮，功能已移至右下角蓝色FAB */}
@@ -2308,7 +2426,7 @@ export default function App(){
     {desk&&<Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})}/>}
     {desk?<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
-        <span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span>
+        <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setModal({t:"labels"})} style={{border:"1.5px solid #e8e8e8",background:"white",borderRadius:10,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>管理标签</button>
           {/* 今日页不显示桌面端右上角新建按钮，功能移到右下角FAB */}
