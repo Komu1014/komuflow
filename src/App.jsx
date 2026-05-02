@@ -44,21 +44,21 @@ function cancelNotif(id) {
 function scheduleEventNotifs(ev, dateStr) {
   if (!ev.startTime || !ev.notif) return;
   const [h, m] = ev.startTime.split(":").map(Number);
-  const startMs = new Date(\`\${dateStr}T\${pad(h)}:\${pad(m)}:00\`).getTime();
+  const startMs = new Date(dateStr + "T" + pad(h) + ":" + pad(m) + ":00").getTime();
   if (ev.notif.onStart) {
     const mins = ev.notif.startMins ?? 15;
     const fireAt = startMs - mins * 60000;
-    const label = mins === 0 ? "现在开始" : \`\${mins} 分钟后开始\`;
-    scheduleNotif(\`\${ev.id}_\${dateStr}_start\`, ev.title || "日程提醒", \`\${label} · \${ev.startTime}\`, fireAt);
+    const label = mins === 0 ? "现在开始" : mins + " 分钟后开始";
+    scheduleNotif(ev.id + "_" + dateStr + "_start", ev.title || "日程提醒", label + " · " + ev.startTime, fireAt);
   }
   if (ev.notif.onEnd && ev.endTime) {
     const [eh, em] = ev.endTime.split(":").map(Number);
-    let endMs = new Date(\`\${dateStr}T\${pad(eh)}:\${pad(em)}:00\`).getTime();
+    let endMs = new Date(dateStr + "T" + pad(eh) + ":" + pad(em) + ":00").getTime();
     if (endMs <= startMs) endMs += 86400000;
     const mins = ev.notif.endMins ?? 0;
     const fireAt = endMs - mins * 60000;
-    const label = mins === 0 ? "任务即将结束" : \`\${mins} 分钟后结束\`;
-    scheduleNotif(\`\${ev.id}_\${dateStr}_end\`, ev.title || "日程提醒", label, fireAt);
+    const label = mins === 0 ? "任务即将结束" : mins + " 分钟后结束";
+    scheduleNotif(ev.id + "_" + dateStr + "_end", ev.title || "日程提醒", label, fireAt);
   }
 }
 function rescheduleAll(events) {
