@@ -2492,7 +2492,7 @@ export default function App(){
   };
   const TN={today:"今天",calendar:"日历",stats:"统计"};
 
-  const mobileNav = !desk && <div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"4px 0 0",paddingBottom:"max(10px, env(safe-area-inset-bottom))"}}>
+  const mobileNav = !desk && <div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"4px 0 6px"}}>
     {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"即将"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 4px",WebkitTapHighlightColor:"transparent"}}>
       <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"5px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"background 0.15s"}}>
         <span style={{fontSize:22,lineHeight:"1.2",color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
