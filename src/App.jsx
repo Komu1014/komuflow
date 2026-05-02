@@ -955,13 +955,13 @@ function EventCard({ev,dateStr,getLb,lightenHex,onToggle,onDelete,onOpen,labels}
         <span style={{fontSize:11,fontWeight:700,opacity:reveal,transition:"opacity 0.08s"}}>删除</span>
       </button>
     </div>
-    <div style={{display:"flex",alignItems:"center",gap:11,padding:"11px 0",background:"white",transform:`translateX(${offset}px)`,willChange:"transform"}}>
+    <div style={{display:"flex",alignItems:"center",gap:11,padding:"13px 0",background:"white",transform:`translateX(${offset}px)`,willChange:"transform"}}>
       <button onClick={e=>{e.stopPropagation();if(offset!==0){close();return;}onToggle(ev.id,dateStr);}} style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${lb.color}`,background:isDone?lb.color:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
         {isDone&&<span style={{color:"white",fontSize:11,fontWeight:900}}>✓</span>}
       </button>
       <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>{if(offset!==0){close();return;}onOpen(ev,dateStr);}}>
-        <div style={{fontSize:14,fontWeight:600,color:isDone?"#555":"#111",textDecoration:isDone?"line-through":"none"}}>{ev.title}</div>
-        <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3,flexWrap:"wrap"}}>
+        <div style={{fontSize:14,fontWeight:600,color:isDone?"#555":"#111",textDecoration:isDone?"line-through":"none",lineHeight:"1.45"}}>{ev.title}</div>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginTop:4,flexWrap:"wrap"}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:3,background:cardColor+"33",borderRadius:20,padding:"2px 7px",fontSize:11,color:isDone?lb.color:lightenHex(lb.color,-0.1),fontWeight:600}}>
             {displayLb.emoji} {displayLb.name}
           </span>
@@ -1060,12 +1060,12 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
       </div>
     </div>
     <div style={{margin:"0 16px 14px",background:"#f8f8f8",borderRadius:14,padding:"10px 14px"}}>
-      <span style={{fontSize:13,color:"#555"}}>共 <b style={{color:"#111"}}>{dEvs.filter(e=>e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay||(e.endDate&&e.endDate!==e.date)).length}</b> 项 · 完成 <b style={{color:"#555"}}>{dEvs.filter(e=>(e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay)&&isDoneOn(e,dateStr)).length}</b></span>
+      <span style={{fontSize:13,color:"#555",lineHeight:"1.5"}}>共 <b style={{color:"#111"}}>{dEvs.filter(e=>e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay||(e.endDate&&e.endDate!==e.date)).length}</b> 项 · 完成 <b style={{color:"#555"}}>{dEvs.filter(e=>(e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay)&&isDoneOn(e,dateStr)).length}</b></span>
     </div>
     {allDayEvs.length>0&&<div>
       <div style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px"}}>
         <span style={{fontSize:17}}>🌞</span>
-        <span style={{fontSize:16,fontWeight:700,color:"#222"}}>全天</span>
+        <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>全天</span>
         <span style={{fontSize:14,color:"#c0c0c0"}}>{allDayEvs.length}</span>
       </div>
       <div data-task-list="1" style={{padding:"0 20px"}}>{allDayEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>
@@ -1076,7 +1076,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
       return <div>
         <div style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px"}}>
           <span style={{fontSize:17}}>🌙</span>
-          <span style={{fontSize:16,fontWeight:700,color:"#222"}}>昨日延续</span>
+          <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>昨日延续</span>
           <span style={{fontSize:14,color:"#c0c0c0"}}>{carryEvs.length}</span>
         </div>
         <div data-task-list="1" style={{padding:"0 20px"}}>{carryEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>
@@ -1089,7 +1089,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px 4px"}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}>
             <span style={{fontSize:17}}>{sec.icon}</span>
-            <span style={{fontSize:16,fontWeight:700,color:"#222"}}>{sec.label}</span>
+            <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>{sec.label}</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{evs.length}</span>
           </div>
           <button onClick={()=>onAdd(dateStr,sec.hour)} style={{width:26,height:26,border:"none",borderRadius:"50%",background:"#f2f2f7",cursor:"pointer",fontSize:18,color:"#8e8e93",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
@@ -1107,7 +1107,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px 4px"}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}>
             <span style={{fontSize:17}}>📋</span>
-            <span style={{fontSize:16,fontWeight:700,color:"#222"}}>尚未安排时间</span>
+            <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>尚未安排时间</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{sorted.length}</span>
           </div>
           <button onClick={()=>onAdd(dateStr,null)} style={{width:26,height:26,border:"none",borderRadius:"50%",background:"#f2f2f7",cursor:"pointer",fontSize:18,color:"#8e8e93",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
@@ -1356,12 +1356,12 @@ function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
       willChange:"transform",
     }}>
       {slotState.dates.map((ds,slotIdx)=>(
-        <div key={slotIdx} style={{width:W>0?`${W}px`:"100%",minWidth:"100%",flexShrink:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:90}}>
+        <div key={slotIdx} style={{width:W>0?`${W}px`:"100%",minWidth:"100%",flexShrink:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:110}}>
           <DayPanel dateStr={ds} events={events} labels={labels} sections={sections} getLb={getLb} lightenHex={lightenHex} onAdd={onAdd} onOpen={onOpen} onToggle={onToggle} onDelete={onDelete} setViewDate={jumpToDate} changeDay={changeDay}/>
         </div>
       ))}
     </div>
-    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(8px, env(safe-area-inset-bottom)) + 62px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:26,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10,WebkitTapHighlightColor:"transparent"}}>+</button>
+    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:26,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10,WebkitTapHighlightColor:"transparent"}}>+</button>
   </div>;
 }
 
@@ -2504,18 +2504,18 @@ export default function App(){
     {tab==="today"&&<TodayPage events={events} labels={labels} onOpen={openEv} onAdd={addEv} onToggle={toggleDone} onDelete={handleDelete}/>}
     {tab==="calendar"&&<CalendarPage events={events} labels={labels} onOpen={openEv} onAdd={addEv}/>}
     {tab==="stats"&&<StatsPage events={events} labels={labels} onOpen={openEv}/>}
-    {!desk&&<div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(255,255,255,0.95)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"3px 0 0",paddingBottom:"max(8px, env(safe-area-inset-bottom))"}}>
+    {!desk&&<div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"4px 0 0",paddingBottom:"max(10px, env(safe-area-inset-bottom))"}}>
       {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"即将"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 4px",WebkitTapHighlightColor:"transparent"}}>
-        <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"3px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:1,transition:"background 0.15s"}}>
-          <span style={{fontSize:20,color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
-          <span style={{fontSize:10,fontWeight:tab===n.id?700:400,color:tab===n.id?"#111":"#8e8e93"}}>{n.l}</span>
+        <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"5px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"background 0.15s"}}>
+          <span style={{fontSize:22,lineHeight:"1.2",color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
+          <span style={{fontSize:11,lineHeight:"1.3",fontWeight:tab===n.id?700:400,color:tab===n.id?"#111":"#8e8e93"}}>{n.l}</span>
         </div>
       </button>)}
     </div>}
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",height:"100vh",width:"100vw",display:"flex",overflow:"hidden",background:"white",textAlign:"left",position:"fixed",top:0,left:0}}>
-    <style>{`*{box-sizing:border-box;text-align:left;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input,textarea,select{font-size:16px!important;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:currentColor;text-align:left;}select{color:#333;-webkit-text-fill-color:#333;}@supports(padding:max(0px)){.safe-bottom{padding-bottom:max(8px,env(safe-area-inset-bottom))!important;}}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:12px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
+    <style>{`*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input,textarea,select{font-size:16px!important;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:currentColor;text-align:left;}select{color:#333;-webkit-text-fill-color:#333;}@supports(padding:max(0px)){.safe-bottom{padding-bottom:max(8px,env(safe-area-inset-bottom))!important;}}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:12px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
     {desk&&<Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})}/>}
     {desk?<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
