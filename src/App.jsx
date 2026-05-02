@@ -14,6 +14,79 @@ const firebaseConfig = {
 const fbApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const db = getFirestore(fbApp);
 const uuid = () => Math.random().toString(36).slice(2,10);
+
+/* ── Push Notification System ── */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+async function getSW() {
+  if (!("serviceWorker" in navigator)) return null;
+  try { return await navigator.serviceWorker.ready; } catch { return null; }
+}
+async function requestNotifPermission() {
+  if (!("Notification" in window)) return "denied";
+  if (Notification.permission !== "default") return Notification.permission;
+  return Notification.requestPermission();
+}
+// Schedule a single notification
+function scheduleNotif(id, title, body, fireAt) {
+  if (fireAt <= Date.now()) return;
+  getSW().then(sw => {
+    sw?.active?.postMessage({ type: "SCHEDULE", id, title, body, fireAt });
+  });
+}
+function cancelNotif(id) {
+  getSW().then(sw => { sw?.active?.postMessage({ type: "CANCEL", id }); });
+}
+// Schedule all notifs for an event on a specific date
+function scheduleEventNotifs(ev, dateStr) {
+  if (!ev.startTime || !ev.notif) return;
+  const [h, m] = ev.startTime.split(":").map(Number);
+  const startMs = new Date(\`\${dateStr}T\${pad(h)}:\${pad(m)}:00\`).getTime();
+  if (ev.notif.onStart) {
+    const mins = ev.notif.startMins ?? 15;
+    const fireAt = startMs - mins * 60000;
+    const label = mins === 0 ? "现在开始" : \`\${mins} 分钟后开始\`;
+    scheduleNotif(\`\${ev.id}_\${dateStr}_start\`, ev.title || "日程提醒", \`\${label} · \${ev.startTime}\`, fireAt);
+  }
+  if (ev.notif.onEnd && ev.endTime) {
+    const [eh, em] = ev.endTime.split(":").map(Number);
+    let endMs = new Date(\`\${dateStr}T\${pad(eh)}:\${pad(em)}:00\`).getTime();
+    if (endMs <= startMs) endMs += 86400000;
+    const mins = ev.notif.endMins ?? 0;
+    const fireAt = endMs - mins * 60000;
+    const label = mins === 0 ? "任务即将结束" : \`\${mins} 分钟后结束\`;
+    scheduleNotif(\`\${ev.id}_\${dateStr}_end\`, ev.title || "日程提醒", label, fireAt);
+  }
+}
+function rescheduleAll(events) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  getSW().then(sw => {
+    if (!sw?.active) return;
+    sw.active.postMessage({ type: "CANCEL_ALL" });
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(); d.setDate(d.getDate() + i);
+      const ds = fmtDate(d);
+      events.forEach(ev => {
+        if (!ev.startTime || !ev.notif?.onStart && !ev.notif?.onEnd) return;
+        if (occursOn(ev, ds)) scheduleEventNotifs(ev, ds);
+      });
+    }
+  });
+}
+function useNotifPermission() {
+  const [perm, setPerm] = useState(() =>
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+  const ask = useCallback(async () => {
+    const p = await requestNotifPermission();
+    setPerm(p);
+    return p;
+  }, []);
+  return [perm, ask];
+}
 const pad = n => String(n).padStart(2,"0");
 const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
@@ -72,10 +145,7 @@ function useFirestore(key, def) {
     try { const s=localStorage.getItem(key); return s?JSON.parse(s):def; } catch { return def; }
   });
   const remoteReadRef = useRef(false);
-  // Use a counter instead of a boolean to correctly handle rapid successive writes.
-  // Each write increments the counter; each snapshot consumed by this client decrements it.
-  // Only when the counter is 0 do we treat an incoming snapshot as a remote change.
-  const pendingWritesRef = useRef(0);
+  const localWriteRef = useRef(false);
 
   useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
@@ -83,21 +153,15 @@ function useFirestore(key, def) {
 
   const writeToFirestore = useDebounce((val) => {
     setSyncStatus("saving");
-    pendingWritesRef.current += 1;
+    localWriteRef.current = true;
     setDoc(doc(db, "komu_data", USER_DOC), { [key]: JSON.stringify(val) }, { merge: true })
       .then(() => { setSyncStatus("ok"); })
-      .catch(() => {
-        setSyncStatus("error");
-        // On failure, decrement so the next real remote snapshot isn't blocked.
-        pendingWritesRef.current = Math.max(0, pendingWritesRef.current - 1);
-      });
+      .catch(() => { setSyncStatus("error"); localWriteRef.current = false; });
   }, 800);
 
   useEffect(() => {
     setSyncStatus("init");
     const ref = doc(db, "komu_data", USER_DOC);
-
-    // Initial fetch: load remote data once on mount (highest priority over localStorage).
     getDoc(ref).then(snap => {
       if (snap.exists()) {
         const raw = snap.data()[key];
@@ -116,15 +180,9 @@ function useFirestore(key, def) {
       setSyncStatus("error");
     });
 
-    // Real-time listener: only apply updates from *other* clients.
     const unsub = onSnapshot(ref, (snap) => {
       if (!snap.exists() || !remoteReadRef.current) return;
-      if (pendingWritesRef.current > 0) {
-        // This snapshot was triggered by our own write — consume it and skip.
-        pendingWritesRef.current -= 1;
-        return;
-      }
-      // This snapshot came from another device — apply it.
+      if (localWriteRef.current) { localWriteRef.current = false; return; }
       const raw = snap.data()[key];
       if (raw) {
         try {
@@ -502,20 +560,51 @@ function LabelManager({labels,onSave,initialLabelId}){
 
 /* ══════ PUSH NOTIFICATION OPTIONS ══════ */
 function NotifPicker({value, onChange}){
-  // value: {onStart: bool, onEnd: bool}
-  const v = value || {onStart:false, onEnd:false};
-  const toggle = k => onChange({...v, [k]: !v[k]});
-  const Tog = ({label, k}) => <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0"}}>
-    <span style={{fontSize:13,color:"#333"}}>{label}</span>
-    <div onClick={()=>toggle(k)} style={{width:40,height:22,borderRadius:11,background:v[k]?"#333":"#ccc",cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
-      <div style={{position:"absolute",top:2,left:v[k]?20:2,width:18,height:18,borderRadius:"50%",background:"white",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+  const [perm, askPerm] = useNotifPermission();
+  const v = value || {onStart:false, onEnd:false, startMins:15, endMins:0};
+  const MINS_OPTS = [
+    {label:"准时", value:0},
+    {label:"提前5分钟", value:5},
+    {label:"提前10分钟", value:10},
+    {label:"提前15分钟", value:15},
+    {label:"提前30分钟", value:30},
+    {label:"提前1小时", value:60},
+  ];
+  const toggle = async (k) => {
+    // If turning on a notif, ensure permission is granted first
+    if (!v[k] && perm !== "granted") {
+      const p = await askPerm();
+      if (p !== "granted") return;
+    }
+    onChange({...v, [k]: !v[k]});
+  };
+  const Tog = ({label, k, children}) => <div style={{padding:"9px 0"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span style={{fontSize:13,color:"#333"}}>{label}</span>
+      <div onClick={()=>toggle(k)} style={{width:40,height:22,borderRadius:11,background:v[k]?"#333":"#ccc",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+        <div style={{position:"absolute",top:2,left:v[k]?20:2,width:18,height:18,borderRadius:"50%",background:"white",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+      </div>
     </div>
+    {v[k] && children && <div style={{marginTop:7}}>{children}</div>}
+  </div>;
+  const MinsRow = ({field, val}) => <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+    {MINS_OPTS.map(o=><button key={o.value} onClick={()=>onChange({...v,[field]:o.value})}
+      style={{padding:"4px 10px",borderRadius:8,border:"1.5px solid",borderColor:val===o.value?"#333":"#e5e7eb",background:val===o.value?"#333":"white",color:val===o.value?"white":"#555",fontSize:11,cursor:"pointer",fontWeight:val===o.value?700:400}}>
+      {o.label}
+    </button>)}
   </div>;
   return <div style={{background:"#fafafa",borderRadius:12,border:"1px solid #f0f0f0",padding:"4px 14px"}}>
-    <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",padding:"8px 0 4px"}}>推送通知</div>
-    <Tog label="任务开始时通知" k="onStart"/>
+    <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",padding:"8px 0 4px",display:"flex",alignItems:"center",gap:6}}>
+      推送通知
+      {perm==="denied"&&<span style={{fontSize:10,color:"#FF3B30",fontWeight:400}}>· 系统已禁止，请在设置中开启</span>}
+    </div>
+    <Tog label="任务开始时通知" k="onStart">
+      <MinsRow field="startMins" val={v.startMins??15}/>
+    </Tog>
     <div style={{height:1,background:"#f0f0f0"}}/>
-    <Tog label="任务结束时通知" k="onEnd"/>
+    <Tog label="任务结束时通知" k="onEnd">
+      <MinsRow field="endMins" val={v.endMins??0}/>
+    </Tog>
   </div>;
 }
 
@@ -2292,6 +2381,10 @@ export default function App(){
     overrides[ds]=!overrides[ds];
     return {...e,doneOverrides:overrides};
   }));
+  const [notifPerm, askNotifPerm] = useNotifPermission();
+  // Re-schedule notifications whenever events change
+  useEffect(() => { rescheduleAll(events); }, [events]);
+
   const saveEv=ev=>{
     const tags=autoTag(ev,labels);
     const fin={...ev,autoTags:tags};
