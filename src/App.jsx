@@ -2514,20 +2514,24 @@ export default function App(){
     {tab==="stats"&&<StatsPage events={events} labels={labels} onOpen={openEv}/>}
   </div>;
 
-  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",height:"100vh",width:"100vw",display:"flex",overflow:"hidden",background:"white",textAlign:"left",position:"fixed",top:0,left:0}}>
+  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",height:"100%",width:"100%",display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left",position:"fixed",top:0,left:0,right:0,bottom:0}}>
     <style>{`*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input,textarea,select{font-size:16px!important;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:currentColor;text-align:left;}select{color:#333;-webkit-text-fill-color:#333;}@supports(padding:max(0px)){.safe-bottom{padding-bottom:max(8px,env(safe-area-inset-bottom))!important;}}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:12px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
-    {desk&&<Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})}/>}
-    {desk?<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setModal({t:"labels"})} style={{border:"1.5px solid #e8e8e8",background:"white",borderRadius:10,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>管理标签</button>
-          {/* 今日页不显示桌面端右上角新建按钮，功能移到右下角FAB */}
-          {tab!=="today"&&tab!=="stats"&&<button onClick={()=>addEv(todayStr(),9)} style={{border:"none",background:"#333",borderRadius:10,padding:"6px 14px",fontSize:12,color:"white",cursor:"pointer",fontWeight:600,textAlign:"center"}}>+ 新建</button>}
+    {desk
+      ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
+          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})}/>
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setModal({t:"labels"})} style={{border:"1.5px solid #e8e8e8",background:"white",borderRadius:10,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>管理标签</button>
+                {tab!=="today"&&tab!=="stats"&&<button onClick={()=>addEv(todayStr(),9)} style={{border:"none",background:"#333",borderRadius:10,padding:"6px 14px",fontSize:12,color:"white",cursor:"pointer",fontWeight:600,textAlign:"center"}}>+ 新建</button>}
+              </div>
+            </div>
+            {page}
+          </div>
         </div>
-      </div>
-      {page}
-    </div>:<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>{page}{mobileNav}</div>}
+      : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
+    }
     {/* 新建任务弹窗 — Modal title hidden to avoid duplicate close button; EventForm内部不再有close按钮 */}
     {modal?.t==="add"&&<Modal title="新建事项" onClose={()=>setModal(null)}>
       <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
