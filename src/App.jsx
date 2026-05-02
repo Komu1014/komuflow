@@ -2492,8 +2492,8 @@ export default function App(){
   };
   const TN={today:"今天",calendar:"日历",stats:"统计"};
 
-  const mobileNav = !desk && <div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
-    <div style={{display:"flex",padding:"4px 0 6px"}}>
+  const mobileNav = !desk && <div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",flexDirection:"column"}}>
+    <div style={{display:"flex",padding:"4px 0 8px"}}>
     {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"即将"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 4px",WebkitTapHighlightColor:"transparent"}}>
       <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"5px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"background 0.15s"}}>
         <span style={{fontSize:22,lineHeight:"1.2",color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
@@ -2516,7 +2516,7 @@ export default function App(){
     {tab==="stats"&&<StatsPage events={events} labels={labels} onOpen={openEv}/>}
   </div>;
 
-  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",height:"100%",width:"100%",display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
+  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
     <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input,textarea,select{font-size:16px!important;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:currentColor;text-align:left;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:12px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
