@@ -2492,26 +2492,26 @@ export default function App(){
   };
   const TN={today:"今天",calendar:"日历",stats:"统计"};
 
+  const mobileNav = !desk && <div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"4px 0 0",paddingBottom:"max(10px, env(safe-area-inset-bottom))"}}>
+    {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"即将"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 4px",WebkitTapHighlightColor:"transparent"}}>
+      <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"5px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"background 0.15s"}}>
+        <span style={{fontSize:22,lineHeight:"1.2",color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
+        <span style={{fontSize:11,lineHeight:"1.3",fontWeight:tab===n.id?700:400,color:tab===n.id?"#111":"#8e8e93"}}>{n.l}</span>
+      </div>
+    </button>)}
+  </div>;
+
   const page=<div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
     {!desk&&<div style={{padding:"14px 18px 6px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{fontSize:24,fontWeight:900,color:"#111",letterSpacing:-0.5}}>{TN[tab]}</div><SyncDot/></div>
       <div style={{display:"flex",gap:7}}>
         <button onClick={()=>setModal({t:"labels"})} style={{border:"1.5px solid #e8e8e8",background:"white",borderRadius:10,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>标签</button>
-        {/* 今日页面不显示右上角新建按钮，功能已移至右下角蓝色FAB */}
         {tab!=="today"&&tab!=="stats"&&<button onClick={()=>addEv(todayStr(),9)} style={{border:"none",background:"#333",borderRadius:10,padding:"6px 12px",fontSize:12,color:"white",cursor:"pointer",fontWeight:600,textAlign:"center"}}>+ 新建</button>}
       </div>
     </div>}
     {tab==="today"&&<TodayPage events={events} labels={labels} onOpen={openEv} onAdd={addEv} onToggle={toggleDone} onDelete={handleDelete}/>}
     {tab==="calendar"&&<CalendarPage events={events} labels={labels} onOpen={openEv} onAdd={addEv}/>}
     {tab==="stats"&&<StatsPage events={events} labels={labels} onOpen={openEv}/>}
-    {!desk&&<div style={{flexShrink:0,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderTop:"1px solid #ebebeb",display:"flex",padding:"4px 0 0",paddingBottom:"max(10px, env(safe-area-inset-bottom))"}}>
-      {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"即将"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 4px",WebkitTapHighlightColor:"transparent"}}>
-        <div style={{width:"100%",borderRadius:12,background:tab===n.id?"#e5e5ea":"transparent",padding:"5px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"background 0.15s"}}>
-          <span style={{fontSize:22,lineHeight:"1.2",color:tab===n.id?"#111":"#8e8e93"}}>{n.icon}</span>
-          <span style={{fontSize:11,lineHeight:"1.3",fontWeight:tab===n.id?700:400,color:tab===n.id?"#111":"#8e8e93"}}>{n.l}</span>
-        </div>
-      </button>)}
-    </div>}
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",height:"100vh",width:"100vw",display:"flex",overflow:"hidden",background:"white",textAlign:"left",position:"fixed",top:0,left:0}}>
@@ -2527,7 +2527,7 @@ export default function App(){
         </div>
       </div>
       {page}
-    </div>:page}
+    </div>:<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>{page}{mobileNav}</div>}
     {/* 新建任务弹窗 — Modal title hidden to avoid duplicate close button; EventForm内部不再有close按钮 */}
     {modal?.t==="add"&&<Modal title="新建事项" onClose={()=>setModal(null)}>
       <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
