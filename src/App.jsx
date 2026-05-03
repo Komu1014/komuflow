@@ -1178,8 +1178,8 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
   const [collapsed,setCollapsed]=useState({});
   const toggleSection=key=>setCollapsed(p=>({...p,[key]:!p[key]}));
   return <>
-    <div style={{padding:"16px 20px 10px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-      <div>
+    <div style={{padding:"16px 20px 10px 20px",position:"relative",minHeight:90}}>
+      <div style={{paddingRight:72}}>
         <div style={{fontSize:12,color:dIsToday?"#FF3B30":"#8e8e93",fontWeight:600,marginBottom:4}}>
           {dIsToday?"今天 · ":""}{dDate.toLocaleDateString("zh-CN",{weekday:"long"})}
           {dHol&&<span style={{marginLeft:8,fontSize:11,color:"#FF3B30",background:"#fff0f0",borderRadius:20,padding:"2px 8px"}}>{dHol}</span>}
@@ -1188,7 +1188,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div className="day-date-num">{dDate.getDate()}日</div>
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
-      <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,alignSelf:"flex-start",marginTop:38}}>
+      <div style={{position:"absolute",top:16,right:20,display:"flex",gap:4}}>
         <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
         <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
       </div>
@@ -2349,10 +2349,11 @@ function StatsPage({events,labels,onOpen}){
         // On mobile: 12 cells per day (2h each); on desktop: 24 cells per day (1h each)
         const numCells=isMobile?12:24;
         const hoursPerCell=isMobile?2:1;
-        // Desktop/iPad: fixed 11px (same as week view); mobile: responsive to fit screen
-        const availW=Math.min(window.innerWidth-32, 560);
+        // Desktop/iPad: fixed 11px (same as week view); mobile: shrink to fit two columns side-by-side
+        // Layout per row: [22px label] [numCells * CS + (numCells-1)*GAP] [6px gap] [22px label] [numCells * CS + (numCells-1)*GAP]
+        // Total = 32px padding + 44px labels + 6px col-gap + 2*numCells*CS + 2*(numCells-1)*GAP
         const CS=isMobile
-          ? Math.max(7, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2)))
+          ? Math.max(5, Math.floor((window.innerWidth - 32 - 44 - 6 - 2*(numCells-1)*GAP) / (numCells*2)))
           : 11;
         const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
@@ -2659,19 +2660,62 @@ function RepeatDeleteModal({ev,instanceDate,onClose,onDelete}){
 }
 
 /* ══════ SIDEBAR ══════ */
-function Sidebar({tab,setTab,labels,onManage,onReorder}){
+function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
+  // ── top-level label drag ──
   const dragSrc=useRef(null);
   const [dragOver,setDragOver]=useState(null);
-  const handleDragStart=(e,idx)=>{dragSrc.current=idx;e.dataTransfer.effectAllowed="move";};
+  const wasDragging=useRef(false);
+  const handleDragStart=(e,idx)=>{dragSrc.current=idx;wasDragging.current=true;e.dataTransfer.effectAllowed="move";};
   const handleDragOver=(e,idx)=>{e.preventDefault();if(dragSrc.current!=null&&dragSrc.current!==idx)setDragOver(idx);};
   const handleDrop=(e,idx)=>{e.preventDefault();if(dragSrc.current==null){setDragOver(null);return;}const from=dragSrc.current;if(from!==idx&&onReorder){const next=[...labels];const [item]=next.splice(from,1);next.splice(idx,0,item);onReorder(next);}setDragOver(null);dragSrc.current=null;};
-  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;};
-  // Touch long-press sort
-  const tDrag=useRef({active:false,src:null,timer:null});
-  const tWasDragging=useRef(false);
-  const tStart=(e,idx)=>{tDrag.current.timer=setTimeout(()=>{tDrag.current.active=true;tDrag.current.src=idx;setDragOver(idx);if(navigator.vibrate)navigator.vibrate(30);},400);};
-  const tMove=(e,idx)=>{if(!tDrag.current.active)return;e.preventDefault();const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);const r=el?.closest('[data-sb-idx]');if(r){const oi=parseInt(r.dataset.sbIdx,10);if(oi!==tDrag.current.src)setDragOver(oi);}};
-  const tEnd=(e)=>{clearTimeout(tDrag.current.timer);if(tDrag.current.active&&onReorder){tWasDragging.current=true;setTimeout(()=>{tWasDragging.current=false;},200);const from=tDrag.current.src,to=dragOver??from;if(from!==to){const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);onReorder(next);}}tDrag.current={active:false,src:null,timer:null};setDragOver(null);};
+  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;setTimeout(()=>{wasDragging.current=false;},50);};
+
+  // ── child label drag (scoped per parent) ──
+  const childDragSrc=useRef(null); // {parentId, idx}
+  const [childDragOver,setChildDragOver]=useState(null); // {parentId, idx}
+  const childWasDragging=useRef(false);
+  // Map of parentId -> parent div DOM node, so we can toggle draggable
+  const parentDivRefs=useRef({});
+
+  const handleChildDragStart=(e,parentId,idx)=>{
+    e.stopPropagation();
+    // Temporarily disable parent's draggable so it doesn't interfere
+    const parentEl=parentDivRefs.current[parentId];
+    if(parentEl) parentEl.draggable=false;
+    childDragSrc.current={parentId,idx};
+    childWasDragging.current=true;
+    e.dataTransfer.effectAllowed="move";
+  };
+  const handleChildDragOver=(e,parentId,idx)=>{
+    e.preventDefault();e.stopPropagation();
+    if(childDragSrc.current?.parentId===parentId&&childDragSrc.current.idx!==idx)
+      setChildDragOver({parentId,idx});
+  };
+  const handleChildDrop=(e,parentId,idx)=>{
+    e.preventDefault();e.stopPropagation();
+    const src=childDragSrc.current;
+    // Restore parent draggable
+    const parentEl=parentDivRefs.current[src?.parentId];
+    if(parentEl) parentEl.draggable=true;
+    if(!src||src.parentId!==parentId){setChildDragOver(null);return;}
+    const from=src.idx;
+    if(from!==idx&&onReorderChildren){
+      const lb=labels.find(l=>l.id===parentId);
+      if(lb){const ch=[...(lb.children||[])];const [item]=ch.splice(from,1);ch.splice(idx,0,item);onReorderChildren(parentId,ch);}
+    }
+    setChildDragOver(null);childDragSrc.current=null;
+  };
+  const handleChildDragEnd=(e)=>{
+    e.stopPropagation();
+    // Restore parent draggable
+    const src=childDragSrc.current;
+    const parentEl=parentDivRefs.current[src?.parentId];
+    if(parentEl) parentEl.draggable=true;
+    setChildDragOver(null);childDragSrc.current=null;
+    setTimeout(()=>{childWasDragging.current=false;},50);
+  };
+
+  // preview for top-level
   const previewLabels=useMemo(()=>{
     if(dragSrc.current==null||dragOver==null) return null;
     const from=dragSrc.current,to=dragOver;
@@ -2679,7 +2723,21 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
     const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);
     return next;
   },[dragOver,labels]);
+
+  // preview for child
+  const previewChildren=useMemo(()=>{
+    if(!childDragSrc.current||!childDragOver) return null;
+    const {parentId,idx:from}=childDragSrc.current;
+    const {parentId:ovPid,idx:to}=childDragOver;
+    if(parentId!==ovPid||from===to) return null;
+    const lb=labels.find(l=>l.id===parentId);
+    if(!lb) return null;
+    const ch=[...(lb.children||[])];const [item]=ch.splice(from,1);ch.splice(to,0,item);
+    return {parentId,children:ch};
+  },[childDragOver,labels]);
+
   const dispLabels=previewLabels||labels;
+
   return <div style={{width:240,background:"#f7f7f9",borderRight:"1px solid #ebebeb",display:"flex",flexDirection:"column",padding:"20px 0 16px",flexShrink:0,overflowY:"auto"}}>
     <div style={{padding:"0 16px 16px",borderBottom:"1px solid #ebebeb",marginBottom:12,flexShrink:0}}>
       <div style={{fontSize:17,fontWeight:900,color:"#111",letterSpacing:-0.5}}>日程</div>
@@ -2688,27 +2746,46 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
     {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"日历"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",border:"none",background:tab===n.id?"#e5e5ea":"transparent",cursor:"pointer",textAlign:"left",justifyContent:"flex-start",width:"100%",borderRadius:0,color:tab===n.id?"#111":"#555",WebkitTextFillColor:tab===n.id?"#111":"#555",fontWeight:tab===n.id?700:400,fontSize:14}}><span>{n.icon}</span>{n.l}</button>)}
     <div style={{margin:"16px 16px 0"}}>
       <div style={{fontSize:10,fontWeight:700,color:"#8e8e93",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>标签</div>
-      {dispLabels.map((lb,idx)=><div key={lb.id}
-        draggable
-        data-sb-idx={idx}
-        onDragStart={e=>handleDragStart(e,idx)}
-        onDragOver={e=>handleDragOver(e,idx)}
-        onDrop={e=>handleDrop(e,idx)}
-        onDragEnd={handleDragEnd}
-        onTouchStart={e=>tStart(e,idx)}
-        onTouchMove={e=>tMove(e,idx)}
-        onTouchEnd={tEnd}
-        style={{opacity:dragSrc.current===idx&&!previewLabels?0.4:1,borderRadius:7,transition:"opacity 0.15s",outline:dragOver===idx&&dragSrc.current!==idx?"2px solid #007AFF":"none"}}>
-        <button onClick={()=>{if(tWasDragging.current)return;onManage(lb.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
-          <span style={{fontSize:11,color:"#c0c0c0",marginRight:2}}>⠿</span>
-          <div style={{width:8,height:8,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
-          <span style={{fontSize:13,color:"#333",fontWeight:500}}>{lb.emoji} {lb.name}</span>
-        </button>
-        {(lb.children||[]).map(ch=><button key={ch.id} onClick={()=>onManage(lb.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px 4px 22px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:ch.color,flexShrink:0}}/>
-          <span style={{fontSize:12,color:"#666"}}>{ch.emoji} {ch.name}</span>
-        </button>)}
-      </div>)}
+      {dispLabels.map((lb,idx)=>{
+        const dispChildren=(previewChildren?.parentId===lb.id?previewChildren.children:(lb.children||[]));
+        return <div key={lb.id}
+          ref={el=>{ if(el) parentDivRefs.current[lb.id]=el; }}
+          draggable
+          data-sb-idx={idx}
+          onDragStart={e=>handleDragStart(e,idx)}
+          onDragOver={e=>{ if(childDragSrc.current) return; handleDragOver(e,idx); }}
+          onDrop={e=>{ if(childDragSrc.current) return; handleDrop(e,idx); }}
+          onDragEnd={handleDragEnd}
+          style={{opacity:dragSrc.current===idx&&!previewLabels?0.4:1,borderRadius:7,transition:"opacity 0.15s",outline:dragOver===idx&&dragSrc.current!==idx?"2px solid #007AFF":"none"}}>
+          <button onClick={()=>{if(wasDragging.current)return;onManage(lb.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:11,color:"#c0c0c0",marginRight:2}}>⠿</span>
+            <div style={{width:8,height:8,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
+            <span style={{fontSize:13,color:"#333",fontWeight:500}}>{lb.emoji} {lb.name}</span>
+          </button>
+          {dispChildren.map((ch,cidx)=>(
+            <div key={ch.id}
+              draggable
+              data-sb-child-parent={lb.id}
+              data-sb-child-idx={cidx}
+              onDragStart={e=>handleChildDragStart(e,lb.id,cidx)}
+              onDragOver={e=>handleChildDragOver(e,lb.id,cidx)}
+              onDrop={e=>handleChildDrop(e,lb.id,cidx)}
+              onDragEnd={handleChildDragEnd}
+              style={{
+                opacity:childDragSrc.current?.parentId===lb.id&&childDragSrc.current?.idx===cidx&&!previewChildren?0.4:1,
+                transition:"opacity 0.15s",
+                borderRadius:7,
+                outline:childDragOver?.parentId===lb.id&&childDragOver?.idx===cidx&&childDragSrc.current?.idx!==cidx?"2px solid #007AFF":"none",
+              }}>
+              <button onClick={()=>{if(childWasDragging.current)return;onManage(lb.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px 4px 22px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:10,color:"#c0c0c0",marginRight:1}}>⠿</span>
+                <div style={{width:6,height:6,borderRadius:"50%",background:ch.color,flexShrink:0}}/>
+                <span style={{fontSize:12,color:"#666"}}>{ch.emoji} {ch.name}</span>
+              </button>
+            </div>
+          ))}
+        </div>;
+      })}
     </div>
   </div>;
 }
@@ -2872,7 +2949,7 @@ export default function App(){
     <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
-          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)}/>
+          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)} onReorderChildren={(parentId,newChildren)=>setLabels(prev=>prev.map(l=>l.id===parentId?{...l,children:newChildren}:l))}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
               <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
