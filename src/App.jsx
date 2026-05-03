@@ -440,8 +440,9 @@ function LabelManager({labels,onSave,initialLabelId}){
   // Drag-sort state
   const dragSrc=useRef(null);
   const [dragOver,setDragOver]=useState(null);
+  const wasDragging=useRef(false); // prevents onClick firing after drag on iPad/Mac
 
-  const handleDragStart=(e,idx,parentId)=>{dragSrc.current={idx,parentId};e.dataTransfer.effectAllowed="move";};
+  const handleDragStart=(e,idx,parentId)=>{dragSrc.current={idx,parentId};wasDragging.current=true;e.dataTransfer.effectAllowed="move";};
   const handleDragOver=(e,idx,parentId)=>{e.preventDefault();if(dragSrc.current&&dragSrc.current.parentId===parentId&&dragSrc.current.idx!==idx)setDragOver({idx,parentId});};
   const handleDrop=(e,idx,parentId)=>{
     e.preventDefault();
@@ -461,7 +462,7 @@ function LabelManager({labels,onSave,initialLabelId}){
     }
     setDragOver(null);dragSrc.current=null;
   };
-  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;};
+  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;setTimeout(()=>{wasDragging.current=false;},50);};
 
   // Long-press for touch drag-sort
   const touchDrag=useRef({active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null});
@@ -498,6 +499,9 @@ function LabelManager({labels,onSave,initialLabelId}){
     e.currentTarget.style.userSelect="";
     e.currentTarget.style.webkitUserSelect="";
     if(!touchDrag.current.active){touchDrag.current={active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null};return;}
+    // Block the subsequent click/tap that fires after touchend
+    wasDragging.current=true;
+    setTimeout(()=>{wasDragging.current=false;},200);
     const from=touchDrag.current.src;
     const to=dragOver?.parentId===parentId?dragOver.idx:from;
     if(from!==to){
@@ -629,7 +633,7 @@ function LabelManager({labels,onSave,initialLabelId}){
         onTouchMove={e=>handleTouchMove(e,lb.id)}
         onTouchEnd={e=>handleTouchEnd(e,lb.id)}
         style={{opacity:dragOver?.parentId===lb.id&&dragSrc.current?.idx===cidx&&!previewList?0.4:1,transition:"opacity 0.15s",borderRadius:10,marginBottom:4,outline:dragOver?.parentId===lb.id&&dragOver?.idx===cidx&&dragSrc.current?.idx!==cidx?"2px solid #007AFF":"none"}}>
-        <div onClick={()=>{ setCed({parentId:lb.id,child:{...c},isNew:false}); setEd(null); }}
+        <div onClick={()=>{ if(wasDragging.current) return; setCed({parentId:lb.id,child:{...c},isNew:false}); setEd(null); }}
           style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ced?.child?.id===c.id?"#f0f7ff":"#f8f8f8",borderRadius:10,cursor:"pointer",border:ced?.child?.id===c.id?"1.5px solid #555":"1.5px solid transparent"}}>
           <span style={{fontSize:12,color:"#c0c0c0",cursor:"grab",touchAction:"none"}}>⠿</span>
           <div style={{width:8,height:8,borderRadius:"50%",background:c.color||lb.color}}/>
@@ -664,7 +668,7 @@ function LabelManager({labels,onSave,initialLabelId}){
       onTouchEnd={e=>handleTouchEnd(e,null)}
       style={{marginBottom:4,opacity:dragSrc.current===idx&&!previewList?0.4:1,transition:"opacity 0.15s,transform 0.15s",borderRadius:12,outline:dragOver?.parentId===null&&dragOver?.idx===idx&&dragSrc.current?.idx!==idx?"2px solid #007AFF":"none"}}>
         <div
-          onClick={()=>{ setSelLabel(l.id); setEd(null); setCed(null); }}
+          onClick={()=>{ if(wasDragging.current) return; setSelLabel(l.id); setEd(null); setCed(null); }}
           style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#f8f8f8",borderRadius:12,cursor:"pointer",border:"1.5px solid transparent",transition:"all 0.15s"}}
         >
           <span style={{fontSize:13,color:"#c0c0c0",marginRight:2,cursor:"grab",touchAction:"none"}}>⠿</span>
@@ -1184,7 +1188,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div className="day-date-num">{dDate.getDate()}日</div>
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
-      <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,alignSelf:"flex-start",marginTop:14}}>
+      <div style={{display:"flex",gap:4,alignItems:"flex-end",flexShrink:0,alignSelf:"flex-end",marginBottom:2}}>
         <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
         <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
       </div>
@@ -1536,7 +1540,7 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
 
   const COL=`44px repeat(${days.length},minmax(0,1fr))`;
   return <div style={{position:"relative",minHeight:`${25*HH+HH}px`}}>
-    <div style={{display:"grid",gridTemplateColumns:COL,paddingBottom:HH,minHeight:`${25*HH}px`}}>
+    <div style={{display:"grid",gridTemplateColumns:COL,paddingBottom:HH+20,minHeight:`${25*HH}px`}}>
       {Array.from({length:25},(_,h)=>[
         <div key={`t${h}`} style={{width:44,height:HH,borderBottom:"1px solid #f5f5f5",fontSize:10,color:"#b0b0b0",paddingTop:4,paddingLeft:6,flexShrink:0,boxSizing:"border-box"}}>
           {h<24?`${pad(h)}:00`:""}
@@ -2209,7 +2213,7 @@ function StatsPage({events,labels,onOpen}){
         cells.push({...item,col:i%7,row:Math.floor(i/7)});
       }
       const rows=Math.ceil(totalCells/7);
-      return{type:"month",cells,cols:7,rows,cellSize:34};
+      return{type:"month",cells,cols:7,rows,cellSize:11};
     }
     // year: 53 weeks x 7 days
     const cells=heatData.map((item,i)=>({...item,col:Math.floor(i/7),row:i%7}));
@@ -2336,7 +2340,7 @@ function StatsPage({events,labels,onOpen}){
         </div>
       </div>}
 
-      {/* Month view: 2 days per row, each day has hourly cells (2h/cell on mobile) */}
+      {/* Month view: 2 days per row, each day has hourly cells — responsive cell size */}
       {period==="month"&&(()=>{
         const base=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);
         const daysInMonth=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
@@ -2345,14 +2349,14 @@ function StatsPage({events,labels,onOpen}){
         // On mobile: 12 cells per day (2h each); on desktop: 24 cells per day (1h each)
         const numCells=isMobile?12:24;
         const hoursPerCell=isMobile?2:1;
-        // Responsive: compute available width
+        // Responsive cell size: fit two day-groups side by side within screen
+        // each side: labelW(22) + numCells*CS + (numCells-1)*GAP, two sides + 6px gap between
         const availW=Math.min(window.innerWidth-32, 560);
-        // Each row: 2 groups of [dayLabel(22px)] + [numCells cells] + gap(6px) between groups
-        const CS=Math.max(7, Math.min(14, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2))));
+        const CS=Math.max(7, Math.min(11, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2))));
         const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
           <div style={{display:"inline-block",maxWidth:"100%"}}>
-            {/* Header: two sets of cell labels */}
+            {/* Header: two sets of hour labels */}
             <div style={{display:"flex",gap:6,marginBottom:2}}>
               {[0,1].map(col=>(
                 <div key={col} style={{display:"flex",gap:GAP,paddingLeft:22}}>
@@ -2443,9 +2447,9 @@ function StatsPage({events,labels,onOpen}){
       })()}
 
       <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"center"}}>
-        <span style={{fontSize:10,color:"#8e8e93"}}>{(period==="day"||period==="week")?"0":"0h"}</span>
+        <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"0min":period==="week"?"0min":"0h"}</span>
         {[0.18,0.36,0.55,0.73,1].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
-        <span style={{fontSize:10,color:"#8e8e93"}}>{(period==="day"||period==="week")?"60m":"2h+"}</span>
+        <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"10min":period==="week"?"1h":period==="month"?"2h+":"12h+"}</span>
       </div>
     </div>
 
@@ -2557,7 +2561,7 @@ function StatsPage({events,labels,onOpen}){
             {ma.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2} fill="#333" opacity={0.7}/>)}
             {/* X labels — show every Nth */}
             {aggData.map((d,i)=>{
-              const step=period==="day"?3:(aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7);
+              const step=period==="day"?4:(aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7);
               if(i%step!==0) return null;
               const xLabel=period==="day"?`${d.label}:00`:d.label;
               return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{xLabel}</text>;
@@ -2660,9 +2664,10 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
   const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;};
   // Touch long-press sort
   const tDrag=useRef({active:false,src:null,timer:null});
+  const tWasDragging=useRef(false);
   const tStart=(e,idx)=>{tDrag.current.timer=setTimeout(()=>{tDrag.current.active=true;tDrag.current.src=idx;setDragOver(idx);if(navigator.vibrate)navigator.vibrate(30);},400);};
   const tMove=(e,idx)=>{if(!tDrag.current.active)return;e.preventDefault();const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);const r=el?.closest('[data-sb-idx]');if(r){const oi=parseInt(r.dataset.sbIdx,10);if(oi!==tDrag.current.src)setDragOver(oi);}};
-  const tEnd=(e)=>{clearTimeout(tDrag.current.timer);if(tDrag.current.active&&onReorder){const from=tDrag.current.src,to=dragOver??from;if(from!==to){const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);onReorder(next);}}tDrag.current={active:false,src:null,timer:null};setDragOver(null);};
+  const tEnd=(e)=>{clearTimeout(tDrag.current.timer);if(tDrag.current.active&&onReorder){tWasDragging.current=true;setTimeout(()=>{tWasDragging.current=false;},200);const from=tDrag.current.src,to=dragOver??from;if(from!==to){const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);onReorder(next);}}tDrag.current={active:false,src:null,timer:null};setDragOver(null);};
   const previewLabels=useMemo(()=>{
     if(dragSrc.current==null||dragOver==null) return null;
     const from=dragSrc.current,to=dragOver;
@@ -2690,7 +2695,7 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
         onTouchMove={e=>tMove(e,idx)}
         onTouchEnd={tEnd}
         style={{opacity:dragSrc.current===idx&&!previewLabels?0.4:1,borderRadius:7,transition:"opacity 0.15s",outline:dragOver===idx&&dragSrc.current!==idx?"2px solid #007AFF":"none"}}>
-        <button onClick={()=>onManage(lb.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
+        <button onClick={()=>{if(tWasDragging.current)return;onManage(lb.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
           <span style={{fontSize:11,color:"#c0c0c0",marginRight:2}}>⠿</span>
           <div style={{width:8,height:8,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
           <span style={{fontSize:13,color:"#333",fontWeight:500}}>{lb.emoji} {lb.name}</span>
