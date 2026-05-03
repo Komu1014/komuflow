@@ -515,6 +515,25 @@ function LabelManager({labels,onSave,initialLabelId}){
     setDragOver(null);
   };
 
+  // Compute preview list during drag
+  const previewList=useMemo(()=>{
+    if(!dragOver||dragSrc.current==null) return null;
+    const from=dragSrc.current.idx;
+    const to=dragOver.idx;
+    const parentId=dragOver.parentId;
+    if(parentId===null){
+      if(from===to) return null;
+      const next=[...list];const [item]=next.splice(from,1);next.splice(to,0,item);
+      return next;
+    } else {
+      const parentLb=list.find(l=>l.id===parentId);
+      if(!parentLb||from===to) return null;
+      const ch=[...(parentLb.children||[])];const [item]=ch.splice(from,1);ch.splice(to,0,item);
+      return list.map(l=>l.id===parentId?{...l,children:ch}:l);
+    }
+  },[dragOver,list]);
+  const displayList=previewList||list;
+
   const Form=({data,setData,title:t,onOk,onCancel,onDelete})=>{
     // Use uncontrolled refs to avoid IME/emoji input bugs
     const emojiRef=useRef();
@@ -594,7 +613,9 @@ function LabelManager({labels,onSave,initialLabelId}){
         onDelete={()=>{const updated=list.filter(x=>x.id!==lb.id);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}
         onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...ed,...latest}:x);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}/>}
       <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:8}}>子标签</div>
-      {(lb.children||[]).map((c,cidx)=><div key={c.id}
+      {(()=>{
+        const displayLb=displayList.find(x=>x.id===lb.id)||lb;
+        return (displayLb.children||[]).map((c,cidx)=><div key={c.id}
         draggable
         data-sortable-idx={cidx}
         data-sortable-parent={lb.id}
@@ -605,7 +626,7 @@ function LabelManager({labels,onSave,initialLabelId}){
         onTouchStart={e=>handleTouchStart(e,cidx,lb.id,()=>lb.children||[])}
         onTouchMove={e=>handleTouchMove(e,lb.id)}
         onTouchEnd={e=>handleTouchEnd(e,lb.id)}
-        style={{opacity:dragOver?.parentId===lb.id&&dragSrc.current?.idx===cidx?0.4:1,transition:"opacity 0.15s",borderRadius:10,marginBottom:4}}>
+        style={{opacity:dragOver?.parentId===lb.id&&dragSrc.current?.idx===cidx&&!previewList?0.4:1,transition:"opacity 0.15s",borderRadius:10,marginBottom:4,outline:dragOver?.parentId===lb.id&&dragOver?.idx===cidx&&dragSrc.current?.idx!==cidx?"2px solid #007AFF":"none"}}>
         <div onClick={()=>{ setCed({parentId:lb.id,child:{...c},isNew:false}); setEd(null); }}
           style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ced?.child?.id===c.id?"#f0f7ff":"#f8f8f8",borderRadius:10,cursor:"pointer",border:ced?.child?.id===c.id?"1.5px solid #555":"1.5px solid transparent"}}>
           <span style={{fontSize:12,color:"#c0c0c0",cursor:"grab",touchAction:"none"}}>⠿</span>
@@ -616,7 +637,7 @@ function LabelManager({labels,onSave,initialLabelId}){
           onCancel={()=>setCed(null)}
           onDelete={()=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x);setList(updated);onSave(updated);setCed(null);}}
           onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x);setList(updated);onSave(updated);setCed(null);}}/>}
-      </div>)}
+      </div>)})()}
       <button onClick={()=>{setCed({parentId:lb.id,child:{id:uuid(),name:"",emoji:"🏷",color:lb.color,keywords:[]},isNew:true});setEd(null);}} style={{fontSize:12,color:"#555",border:"1.5px solid #e5e7eb",background:"white",cursor:"pointer",padding:"7px 14px",borderRadius:10,marginTop:6}}>+ 添加子标签</button>
       {ced?.isNew&&ced?.parentId===lb.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="新建子标签"
         onCancel={()=>setCed(null)}
@@ -628,7 +649,7 @@ function LabelManager({labels,onSave,initialLabelId}){
   }
 
   return <div>
-    {list.map((l,idx)=><div key={l.id}
+    {displayList.map((l,idx)=><div key={l.id}
       draggable
       data-sortable-idx={idx}
       data-sortable-parent=""
@@ -639,7 +660,7 @@ function LabelManager({labels,onSave,initialLabelId}){
       onTouchStart={e=>handleTouchStart(e,idx,null,()=>list)}
       onTouchMove={e=>handleTouchMove(e,null)}
       onTouchEnd={e=>handleTouchEnd(e,null)}
-      style={{marginBottom:4,opacity:dragOver?.parentId===null&&dragSrc.current?.idx===idx?0.4:1,transition:"opacity 0.15s",borderRadius:12}}>
+      style={{marginBottom:4,opacity:dragSrc.current===idx&&!previewList?0.4:1,transition:"opacity 0.15s,transform 0.15s",borderRadius:12,outline:dragOver?.parentId===null&&dragOver?.idx===idx&&dragSrc.current?.idx!==idx?"2px solid #007AFF":"none"}}>
         <div
           onClick={()=>{ setSelLabel(l.id); setEd(null); setCed(null); }}
           style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#f8f8f8",borderRadius:12,cursor:"pointer",border:"1.5px solid transparent",transition:"all 0.15s"}}
@@ -922,7 +943,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
 
       <div>
         <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>笔记</div>
-        <textarea value={form.notes} ref={el=>{if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}}} onChange={e=>{setForm(p=>({...p,notes:e.target.value}));e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}} placeholder="添加备注…" className="notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"none",overflow:"hidden"}}
+        <textarea value={form.notes} ref={el=>{if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}}} onChange={e=>{setForm(p=>({...p,notes:e.target.value}));e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}} placeholder="添加备注…" className="notes-textarea mobile-notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"none",overflow:"hidden"}}
           onFocus={e=>{e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";setTimeout(()=>e.target.scrollIntoView({behavior:"smooth",block:"nearest"}),300);}}
           onBlur={()=>{setTimeout(()=>{window.scrollTo(0,0);if(window.visualViewport){const vv=window.visualViewport;if(vv.scale>1){document.documentElement.style.transform="scale(1)";document.documentElement.style.transform="";}}}  ,100);}}/>
       </div>
@@ -1470,7 +1491,7 @@ function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
         </div>
       ))}
     </div>
-    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:28,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,zIndex:10,WebkitTapHighlightColor:"transparent",padding:0}}>+</button>
+    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:28,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,zIndex:10,WebkitTapHighlightColor:"transparent",padding:"0 0 2px 0"}}>+</button>
   </div>;
 }
 
@@ -2283,7 +2304,7 @@ function StatsPage({events,labels,onOpen}){
         <div style={{display:"flex",justifyContent:"space-between",marginTop:4,paddingLeft:24}}>
           <span style={{fontSize:9,color:"#aaa"}}>00:00</span>
           <span style={{fontSize:9,color:"#aaa"}}>12:00</span>
-          <span style={{fontSize:9,color:"#aaa"}}>23:50</span>
+          <span style={{fontSize:9,color:"#aaa"}}>24:00</span>
         </div>
         </div>
       </div>}
@@ -2308,47 +2329,66 @@ function StatsPage({events,labels,onOpen}){
         </div>
       </div>}
 
-      {/* Month view: hourly grid — rows=days, cols=hours (24), same small cells as week view */}
+      {/* Month view: 2 days per row, each day has 24 hourly cells */}
       {period==="month"&&(()=>{
         const base=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);
         const daysInMonth=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
-        const CS=11;const GAP=2;
+        const GAP=2;
+        // Responsive: compute available width
+        const availW=Math.min(window.innerWidth-32, 560);
+        // Each row has 2 groups: [dayLabel(22px)] [24 cells] [gap(6px)] [dayLabel(22px)] [24 cells]
+        // Total = 22 + 24*(CS+GAP)-GAP + 6 + 22 + 24*(CS+GAP)-GAP = 2*22 + 2*(24*CS+23*GAP) + 6
+        // Solve: availW = 50 + 2*(24*CS + 23*GAP) => CS = (availW - 50 - 2*23*GAP) / 48
+        const CS=Math.max(7, Math.min(11, Math.floor((availW - 50 - 2*23*GAP) / 48)));
+        const dayGroupW=22+24*CS+23*GAP; // width of one day's label+cells
+        const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-          <div style={{display:"inline-block"}}>
-            {/* Hour header */}
-            <div style={{display:"flex",gap:GAP,marginBottom:2,paddingLeft:24}}>
-              {Array.from({length:24},(_,h)=><div key={h} style={{width:CS,flexShrink:0,fontSize:7,color:"#aaa",textAlign:"center"}}>{h%6===0?pad(h):""}</div>)}
+          <div style={{display:"inline-block",maxWidth:"100%"}}>
+            {/* Header: two sets of hour labels */}
+            <div style={{display:"flex",gap:6,marginBottom:2}}>
+              {[0,1].map(col=>(
+                <div key={col} style={{display:"flex",gap:GAP,paddingLeft:22}}>
+                  {Array.from({length:24},(_,h)=>(
+                    <div key={h} style={{width:CS,flexShrink:0,fontSize:7,color:"#aaa",textAlign:"center"}}>{h%6===0?pad(h)+":00":""}</div>
+                  ))}
+                </div>
+              ))}
             </div>
-            {Array.from({length:daysInMonth},(_,di)=>{
-              const d=new Date(base.getFullYear(),base.getMonth(),di+1);
-              const ds=fmtDate(d);
-              const dayItem=heatData[di]||{d:ds,mins:0,domLabel:null,byLabel:{}};
-              // Build per-hour minutes from events on this day
-              const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
-              const isHeatIsAll=heatIds.includes("all");
-              const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
-              return <div key={di} style={{display:"flex",alignItems:"center",gap:GAP,marginBottom:GAP}}>
-                <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>
-                {Array.from({length:24},(_,h)=>{
-                  const hStart=h*60,hEnd=(h+1)*60;
-                  const hEvs=filtEvs.filter(e=>{
-                    const eStart=parseMins(e.startTime);
-                    const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
-                    const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
-                    return eStart<hEnd&&eEndAdj>hStart;
-                  });
-                  const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
-                  let domLb=null,domM=0;Object.entries(byLb).forEach(([lid,m])=>{if(m>domM){domM=m;domLb=lid;}});
-                  const mins=hEvs.reduce((s,e)=>s+getDur(e),0);
-                  const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"hour");
-                  return <div key={h} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
+            {/* Rows: 2 days per row */}
+            {Array.from({length:Math.ceil(daysInMonth/2)},(_,rowIdx)=>{
+              const daysInRow=(rowIdx===Math.floor(daysInMonth/2)&&isOdd)?1:2;
+              return <div key={rowIdx} style={{display:"flex",gap:6,marginBottom:GAP}}>
+                {Array.from({length:daysInRow},(_,col)=>{
+                  const di=rowIdx*2+col;
+                  const d=new Date(base.getFullYear(),base.getMonth(),di+1);
+                  const ds=fmtDate(d);
+                  const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
+                  const isHeatIsAll=heatIds.includes("all");
+                  const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
+                  return <div key={col} style={{display:"flex",alignItems:"center",gap:GAP}}>
+                    <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>
+                    {Array.from({length:24},(_,h)=>{
+                      const hStart=h*60,hEnd=(h+1)*60;
+                      const hEvs=filtEvs.filter(e=>{
+                        const eStart=parseMins(e.startTime);
+                        const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
+                        const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
+                        return eStart<hEnd&&eEndAdj>hStart;
+                      });
+                      const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
+                      let domLb=null,domM=0;Object.entries(byLb).forEach(([lid,m])=>{if(m>domM){domM=m;domLb=lid;}});
+                      const mins=hEvs.reduce((s,e)=>s+getDur(e),0);
+                      const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"hour");
+                      return <div key={h} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
+                    })}
+                  </div>;
                 })}
               </div>;
             })}
-            <div style={{display:"flex",justifyContent:"space-between",marginTop:4,paddingLeft:24}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:4,paddingLeft:22}}>
               <span style={{fontSize:9,color:"#aaa"}}>00:00</span>
               <span style={{fontSize:9,color:"#aaa"}}>12:00</span>
-              <span style={{fontSize:9,color:"#aaa"}}>23:00</span>
+              <span style={{fontSize:9,color:"#aaa"}}>24:00</span>
             </div>
           </div>
         </div>;
@@ -2420,8 +2460,25 @@ function StatsPage({events,labels,onOpen}){
         return{ds,byLb,total};
       });
 
+      // For day view: build hourly breakdown
+      const hourData=(period==="day")?Array.from({length:24},(_,h)=>{
+        const ds=fmtDate(cStart);
+        const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
+        const hStart=h*60,hEnd=(h+1)*60;
+        const hEvs=dayEvs.filter(e=>{
+          const eStart=parseMins(e.startTime);
+          const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
+          const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
+          return eStart<hEnd&&eEndAdj>hStart;
+        });
+        const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
+        const total=hEvs.reduce((s,e)=>s+getDur(e),0);
+        return{label:`${pad(h)}`,total,byLb,ds};
+      }):null;
+
       // Aggregate by week for year view, by day otherwise
       const aggData=(()=>{
+        if(period==="day") return hourData;
         if(period==="year"){
           const weeks=[];
           for(let wi=0;wi<53;wi++){
@@ -2490,10 +2547,13 @@ function StatsPage({events,labels,onOpen}){
             {ma.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2} fill="#333" opacity={0.7}/>)}
             {/* X labels — show every Nth */}
             {aggData.map((d,i)=>{
-              const step=aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7;
+              const step=period==="day"?3:(aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7);
               if(i%step!==0) return null;
-              return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{d.label}</text>;
+              const xLabel=period==="day"?`${d.label}:00`:d.label;
+              return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{xLabel}</text>;
             })}
+            {/* 24:00 end label for day view */}
+            {period==="day"&&<text x={24+24*W_ITEM} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">24:00</text>}
             {/* Y labels */}
             {[0,0.5,1].map(f=><text key={f} x={22} y={H*(1-f)+4+3} textAnchor="end" fontSize={8} fill="#aaa">{fmtMins(Math.round(maxVal*f))}</text>)}
           </svg>
@@ -2593,6 +2653,14 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
   const tStart=(e,idx)=>{tDrag.current.timer=setTimeout(()=>{tDrag.current.active=true;tDrag.current.src=idx;setDragOver(idx);if(navigator.vibrate)navigator.vibrate(30);},400);};
   const tMove=(e,idx)=>{if(!tDrag.current.active)return;e.preventDefault();const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);const r=el?.closest('[data-sb-idx]');if(r){const oi=parseInt(r.dataset.sbIdx,10);if(oi!==tDrag.current.src)setDragOver(oi);}};
   const tEnd=(e)=>{clearTimeout(tDrag.current.timer);if(tDrag.current.active&&onReorder){const from=tDrag.current.src,to=dragOver??from;if(from!==to){const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);onReorder(next);}}tDrag.current={active:false,src:null,timer:null};setDragOver(null);};
+  const previewLabels=useMemo(()=>{
+    if(dragSrc.current==null||dragOver==null) return null;
+    const from=dragSrc.current,to=dragOver;
+    if(from===to) return null;
+    const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);
+    return next;
+  },[dragOver,labels]);
+  const dispLabels=previewLabels||labels;
   return <div style={{width:240,background:"#f7f7f9",borderRight:"1px solid #ebebeb",display:"flex",flexDirection:"column",padding:"20px 0 16px",flexShrink:0,overflowY:"auto"}}>
     <div style={{padding:"0 16px 16px",borderBottom:"1px solid #ebebeb",marginBottom:12,flexShrink:0}}>
       <div style={{fontSize:17,fontWeight:900,color:"#111",letterSpacing:-0.5}}>日程</div>
@@ -2601,7 +2669,7 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
     {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"日历"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",border:"none",background:tab===n.id?"#e5e5ea":"transparent",cursor:"pointer",textAlign:"left",justifyContent:"flex-start",width:"100%",borderRadius:0,color:tab===n.id?"#111":"#555",WebkitTextFillColor:tab===n.id?"#111":"#555",fontWeight:tab===n.id?700:400,fontSize:14}}><span>{n.icon}</span>{n.l}</button>)}
     <div style={{margin:"16px 16px 0"}}>
       <div style={{fontSize:10,fontWeight:700,color:"#8e8e93",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>标签</div>
-      {labels.map((lb,idx)=><div key={lb.id}
+      {dispLabels.map((lb,idx)=><div key={lb.id}
         draggable
         data-sb-idx={idx}
         onDragStart={e=>handleDragStart(e,idx)}
@@ -2611,7 +2679,7 @@ function Sidebar({tab,setTab,labels,onManage,onReorder}){
         onTouchStart={e=>tStart(e,idx)}
         onTouchMove={e=>tMove(e,idx)}
         onTouchEnd={tEnd}
-        style={{opacity:dragSrc.current===idx?0.4:1,borderRadius:7,transition:"opacity 0.15s"}}>
+        style={{opacity:dragSrc.current===idx&&!previewLabels?0.4:1,borderRadius:7,transition:"opacity 0.15s",outline:dragOver===idx&&dragSrc.current!==idx?"2px solid #007AFF":"none"}}>
         <button onClick={()=>onManage(lb.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
           <span style={{fontSize:11,color:"#c0c0c0",marginRight:2}}>⠿</span>
           <div style={{width:8,height:8,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
@@ -2782,7 +2850,7 @@ export default function App(){
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
-    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
+    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input:not(.notes-textarea),textarea:not(.notes-textarea),select{font-size:16px!important;-webkit-text-size-adjust:100%;}.mobile-notes-textarea{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
           <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)}/>
