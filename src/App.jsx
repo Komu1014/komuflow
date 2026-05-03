@@ -434,6 +434,8 @@ function LabelManager({labels,onSave,initialLabelId}){
   const [ed,setEd]=useState(null);
   const [ced,setCed]=useState(null);
   const [selLabel,setSelLabel]=useState(initialLabelId||null); // selected label for detail view
+  // syncList: persist labels to parent WITHOUT closing modal
+  const syncList=(next)=>{onSave(next,/*noClose=*/true);};
 
   // Drag-sort state
   const dragSrc=useRef(null);
@@ -448,14 +450,14 @@ function LabelManager({labels,onSave,initialLabelId}){
     if(from===idx){setDragOver(null);return;}
     if(!parentId){
       const next=[...list];const [item]=next.splice(from,1);next.splice(idx,0,item);
-      setList(next);onSave(next);
+      setList(next);syncList(next);
     } else {
       const next=list.map(l=>{
         if(l.id!==parentId) return l;
         const ch=[...(l.children||[])];const [item]=ch.splice(from,1);ch.splice(idx,0,item);
         return {...l,children:ch};
       });
-      setList(next);onSave(next);
+      setList(next);syncList(next);
     }
     setDragOver(null);dragSrc.current=null;
   };
@@ -501,14 +503,14 @@ function LabelManager({labels,onSave,initialLabelId}){
     if(from!==to){
       if(!parentId){
         const next=[...list];const [item]=next.splice(from,1);next.splice(to,0,item);
-        setList(next);onSave(next);
+        setList(next);syncList(next);
       } else {
         const next=list.map(l=>{
           if(l.id!==parentId) return l;
           const ch=[...(l.children||[])];const [item]=ch.splice(from,1);ch.splice(to,0,item);
           return {...l,children:ch};
         });
-        setList(next);onSave(next);
+        setList(next);syncList(next);
       }
     }
     touchDrag.current={active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null};
@@ -610,8 +612,8 @@ function LabelManager({labels,onSave,initialLabelId}){
       </div>
       {ed?.id===lb.id&&<Form data={ed} setData={setEd} title="编辑标签"
         onCancel={()=>setEd(null)}
-        onDelete={()=>{const updated=list.filter(x=>x.id!==lb.id);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}
-        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...ed,...latest}:x);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}/>}
+        onDelete={()=>{const updated=list.filter(x=>x.id!==lb.id);setList(updated);syncList(updated);setEd(null);setSelLabel(null);}}
+        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...ed,...latest}:x);setList(updated);syncList(updated);setEd(null);setSelLabel(null);}}/>}
       <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:8}}>子标签</div>
       {(()=>{
         const displayLb=displayList.find(x=>x.id===lb.id)||lb;
@@ -635,13 +637,13 @@ function LabelManager({labels,onSave,initialLabelId}){
         </div>
         {ced?.parentId===lb.id&&ced?.child?.id===c.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="编辑子标签"
           onCancel={()=>setCed(null)}
-          onDelete={()=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x);setList(updated);onSave(updated);setCed(null);}}
-          onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x);setList(updated);onSave(updated);setCed(null);}}/>}
+          onDelete={()=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x);setList(updated);syncList(updated);setCed(null);}}
+          onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x);setList(updated);syncList(updated);setCed(null);}}/>}
       </div>)})()}
       <button onClick={()=>{setCed({parentId:lb.id,child:{id:uuid(),name:"",emoji:"🏷",color:lb.color,keywords:[]},isNew:true});setEd(null);}} style={{fontSize:12,color:"#555",border:"1.5px solid #e5e7eb",background:"white",cursor:"pointer",padding:"7px 14px",borderRadius:10,marginTop:6}}>+ 添加子标签</button>
       {ced?.isNew&&ced?.parentId===lb.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="新建子标签"
         onCancel={()=>setCed(null)}
-        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x);setList(updated);onSave(updated);setCed(null);}}/>}
+        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x);setList(updated);syncList(updated);setCed(null);}}/>}
       <div style={{display:"flex",gap:10,marginTop:16}}>
         <button onClick={()=>onSave(list)} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>完成</button>
       </div>
@@ -679,7 +681,7 @@ function LabelManager({labels,onSave,initialLabelId}){
     </div>}
     {ed?.isNew&&<Form data={ed} setData={setEd} title="新建标签"
       onCancel={()=>setEd(null)}
-      onOk={(latest)=>{const updated=[...list,{...ed,...latest}];setList(updated);onSave(updated);setEd(null);}}/>}
+      onOk={(latest)=>{const updated=[...list,{...ed,...latest}];setList(updated);syncList(updated);setEd(null);}}/>}
   </div>;
 }
 
@@ -943,7 +945,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
 
       <div>
         <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>笔记</div>
-        <textarea value={form.notes} ref={el=>{if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}}} onChange={e=>{setForm(p=>({...p,notes:e.target.value}));e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}} placeholder="添加备注…" className="notes-textarea mobile-notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"none",overflow:"hidden"}}
+        <textarea value={form.notes} ref={el=>{if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}}} onChange={e=>{setForm(p=>({...p,notes:e.target.value}));e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}} placeholder="添加备注…" className="notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"none",overflow:"hidden"}}
           onFocus={e=>{e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";setTimeout(()=>e.target.scrollIntoView({behavior:"smooth",block:"nearest"}),300);}}
           onBlur={()=>{setTimeout(()=>{window.scrollTo(0,0);if(window.visualViewport){const vv=window.visualViewport;if(vv.scale>1){document.documentElement.style.transform="scale(1)";document.documentElement.style.transform="";}}}  ,100);}}/>
       </div>
@@ -1182,7 +1184,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div className="day-date-num">{dDate.getDate()}日</div>
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
-      <div style={{display:"flex",gap:4,alignItems:"center",marginTop:"auto",paddingTop:14}}>
+      <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,alignSelf:"flex-start",marginTop:14}}>
         <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
         <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
       </div>
@@ -2100,12 +2102,17 @@ function StatsPage({events,labels,onOpen}){
     return arr;
   },[events,heatIds,offset,period]);
 
-  // Absolute-scale heat color: intensity based on fixed time caps, not relative max.
-  // "hour" granularity (day/week sub-hour cells): cap at 60 min
-  // "day" granularity (month/year cells): cap at 240 min (4h)
+  // Absolute-scale heat color: intensity based on fixed time caps per granularity.
+  // Caps: day_heat=10min, week=60min, month_mobile=120min, month_desk=60min, year=720min(12h)
+  const isMobileView=window.innerWidth<768;
   const heatCellColor=(domLabelId, mins, granularity)=>{
     if(!mins) return "#f0f0f0";
-    const cap=granularity==="hour"?60:120; // day cap: 2h for richer color variation
+    let cap;
+    if(granularity==="day_heat") cap=10;
+    else if(granularity==="week") cap=60;
+    else if(granularity==="month") cap=isMobileView?120:60;
+    else if(granularity==="year") cap=720;
+    else cap=60; // fallback
     const a=Math.min(1, 0.18+0.82*(mins/cap));
     const domLb=domLabelId?flat.find(l=>l.id===domLabelId):null;
     const baseColor=domLb?domLb.color:(hLb?hLb.color:"#8e8e93");
@@ -2296,7 +2303,7 @@ function StatsPage({events,labels,onOpen}){
             <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>:{rowLabel}</div>
             {heatGrid.cells.filter(c=>c.m===row*10).map((cell,i)=>{
               const domLb=cell.domLabel?flat.find(l=>l.id===cell.domLabel):null;
-              const bg=heatCellColor(cell.domLabel,cell.hasActivity?cell.totalMins:0,"hour");
+              const bg=heatCellColor(cell.domLabel,cell.hasActivity?cell.totalMins:0,"day_heat");
               return <div key={i} title={`${pad(cell.h)}:${pad(cell.m)} ${cell.hasActivity?(domLb?domLb.name:"活动"):"无活动"}`} style={{width:heatGrid.cellSize,height:heatGrid.cellSize,borderRadius:3,background:bg,flexShrink:0}}/>;
             })}
           </div>;
@@ -2321,7 +2328,7 @@ function StatsPage({events,labels,onOpen}){
           return <div key={day} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
             <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{dayLabel?WDF[dayLabel.getDay()]:WDF[day]}</div>
             {dayCells.map((cell,i)=>{
-              const bg=heatCellColor(cell.domLabel,cell.mins,"hour");
+              const bg=heatCellColor(cell.domLabel,cell.mins,"week");
               return <div key={i} title={`${cell.d} ${pad(cell.h)}:00 ${fmtMins(cell.mins)}`} style={{width:heatGrid.cellSize,height:heatGrid.cellSize,borderRadius:3,background:bg,flexShrink:0}}/>;
             })}
           </div>;
@@ -2329,28 +2336,31 @@ function StatsPage({events,labels,onOpen}){
         </div>
       </div>}
 
-      {/* Month view: 2 days per row, each day has 24 hourly cells */}
+      {/* Month view: 2 days per row, each day has hourly cells (2h/cell on mobile) */}
       {period==="month"&&(()=>{
         const base=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);
         const daysInMonth=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
         const GAP=2;
+        const isMobile=window.innerWidth<768;
+        // On mobile: 12 cells per day (2h each); on desktop: 24 cells per day (1h each)
+        const numCells=isMobile?12:24;
+        const hoursPerCell=isMobile?2:1;
         // Responsive: compute available width
         const availW=Math.min(window.innerWidth-32, 560);
-        // Each row has 2 groups: [dayLabel(22px)] [24 cells] [gap(6px)] [dayLabel(22px)] [24 cells]
-        // Total = 22 + 24*(CS+GAP)-GAP + 6 + 22 + 24*(CS+GAP)-GAP = 2*22 + 2*(24*CS+23*GAP) + 6
-        // Solve: availW = 50 + 2*(24*CS + 23*GAP) => CS = (availW - 50 - 2*23*GAP) / 48
-        const CS=Math.max(7, Math.min(11, Math.floor((availW - 50 - 2*23*GAP) / 48)));
-        const dayGroupW=22+24*CS+23*GAP; // width of one day's label+cells
+        // Each row: 2 groups of [dayLabel(22px)] + [numCells cells] + gap(6px) between groups
+        const CS=Math.max(7, Math.min(14, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2))));
         const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
           <div style={{display:"inline-block",maxWidth:"100%"}}>
-            {/* Header: two sets of hour labels */}
+            {/* Header: two sets of cell labels */}
             <div style={{display:"flex",gap:6,marginBottom:2}}>
               {[0,1].map(col=>(
                 <div key={col} style={{display:"flex",gap:GAP,paddingLeft:22}}>
-                  {Array.from({length:24},(_,h)=>(
-                    <div key={h} style={{width:CS,flexShrink:0,fontSize:7,color:"#aaa",textAlign:"center"}}>{h%6===0?pad(h)+":00":""}</div>
-                  ))}
+                  {Array.from({length:numCells},(_,ci)=>{
+                    const h=ci*hoursPerCell;
+                    const showLabel=isMobile?(ci%3===0):(ci%6===0);
+                    return <div key={ci} style={{width:CS,flexShrink:0,fontSize:7,color:"#aaa",textAlign:"center"}}>{showLabel?pad(h)+"h":""}</div>;
+                  })}
                 </div>
               ))}
             </div>
@@ -2367,8 +2377,8 @@ function StatsPage({events,labels,onOpen}){
                   const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
                   return <div key={col} style={{display:"flex",alignItems:"center",gap:GAP}}>
                     <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>
-                    {Array.from({length:24},(_,h)=>{
-                      const hStart=h*60,hEnd=(h+1)*60;
+                    {Array.from({length:numCells},(_,ci)=>{
+                      const hStart=ci*hoursPerCell*60,hEnd=(ci+1)*hoursPerCell*60;
                       const hEvs=filtEvs.filter(e=>{
                         const eStart=parseMins(e.startTime);
                         const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
@@ -2378,8 +2388,8 @@ function StatsPage({events,labels,onOpen}){
                       const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
                       let domLb=null,domM=0;Object.entries(byLb).forEach(([lid,m])=>{if(m>domM){domM=m;domLb=lid;}});
                       const mins=hEvs.reduce((s,e)=>s+getDur(e),0);
-                      const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"hour");
-                      return <div key={h} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
+                      const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"month");
+                      return <div key={ci} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
                     })}
                   </div>;
                 })}
@@ -2387,7 +2397,7 @@ function StatsPage({events,labels,onOpen}){
             })}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4,paddingLeft:22}}>
               <span style={{fontSize:9,color:"#aaa"}}>00:00</span>
-              <span style={{fontSize:9,color:"#aaa"}}>12:00</span>
+              <span style={{fontSize:9,color:"#aaa"}}>{isMobile?"12:00":"12:00"}</span>
               <span style={{fontSize:9,color:"#aaa"}}>24:00</span>
             </div>
           </div>
@@ -2422,7 +2432,7 @@ function StatsPage({events,labels,onOpen}){
                   {Array.from({length:daysInM},(_,di)=>{
                     const ds=`${yr}-${pad(mi+1)}-${pad(di+1)}`;
                     const item=heatData.find(h=>h.d===ds)||{mins:0,domLabel:null};
-                    const bg=heatCellColor(item.domLabel,item.mins,"day");
+                    const bg=heatCellColor(item.domLabel,item.mins,"year");
                     return <div key={di} title={`${ds}: ${fmtMins(item.mins)}`} style={{width:CS,height:CS,borderRadius:3,background:bg,flexShrink:0}}/>;
                   })}
                 </div>
@@ -2513,7 +2523,7 @@ function StatsPage({events,labels,onOpen}){
         return vals.reduce((s,v)=>s+v,0)/vals.length;
       });
 
-      const svgW=totalW+32;
+      const svgW=totalW+32+(period==="day"?20:0);
       const svgH=H+28;
 
       return <div style={{background:"white",borderRadius:20,padding:"16px 16px 12px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)"}}>
@@ -2850,7 +2860,7 @@ export default function App(){
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
-    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input:not(.notes-textarea),textarea:not(.notes-textarea),select{font-size:16px!important;-webkit-text-size-adjust:100%;}.mobile-notes-textarea{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
+    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
           <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)}/>
@@ -2874,7 +2884,7 @@ export default function App(){
     {modal?.t==="edit"&&<Modal title="编辑事项" onClose={()=>setModal(null)}>
       <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)}/>
     </Modal>}
-    {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={ls=>{setLabels(ls);setModal(null);}}/></Modal>}
+    {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/></Modal>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
   </div>;
 }
