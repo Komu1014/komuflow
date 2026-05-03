@@ -1188,7 +1188,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div className="day-date-num">{dDate.getDate()}日</div>
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
-      <div style={{display:"flex",gap:4,alignItems:"flex-end",flexShrink:0,alignSelf:"flex-end",marginBottom:2}}>
+      <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,alignSelf:"flex-start",marginTop:38}}>
         <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
         <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
       </div>
@@ -1542,7 +1542,7 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
   return <div style={{position:"relative",minHeight:`${25*HH+HH}px`}}>
     <div style={{display:"grid",gridTemplateColumns:COL,paddingBottom:HH+20,minHeight:`${25*HH}px`}}>
       {Array.from({length:25},(_,h)=>[
-        <div key={`t${h}`} style={{width:44,height:HH,borderBottom:"1px solid #f5f5f5",fontSize:10,color:"#b0b0b0",paddingTop:4,paddingLeft:6,flexShrink:0,boxSizing:"border-box"}}>
+        <div key={`t${h}`} style={{width:44,height:h<24?HH:0,borderBottom:h<24?"1px solid #f5f5f5":"none",fontSize:10,color:"#b0b0b0",paddingTop:4,paddingLeft:6,flexShrink:0,boxSizing:"border-box"}}>
           {h<24?`${pad(h)}:00`:""}
         </div>,
         ...days.map((d,di)=>{
@@ -2349,10 +2349,11 @@ function StatsPage({events,labels,onOpen}){
         // On mobile: 12 cells per day (2h each); on desktop: 24 cells per day (1h each)
         const numCells=isMobile?12:24;
         const hoursPerCell=isMobile?2:1;
-        // Responsive cell size: fit two day-groups side by side within screen
-        // each side: labelW(22) + numCells*CS + (numCells-1)*GAP, two sides + 6px gap between
+        // Desktop/iPad: fixed 11px (same as week view); mobile: responsive to fit screen
         const availW=Math.min(window.innerWidth-32, 560);
-        const CS=Math.max(7, Math.min(11, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2))));
+        const CS=isMobile
+          ? Math.max(7, Math.floor((availW - 50 - 2*(numCells-1)*GAP) / (numCells*2)))
+          : 11;
         const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
           <div style={{display:"inline-block",maxWidth:"100%"}}>
@@ -2561,8 +2562,11 @@ function StatsPage({events,labels,onOpen}){
             {ma.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2} fill="#333" opacity={0.7}/>)}
             {/* X labels — show every Nth */}
             {aggData.map((d,i)=>{
-              const step=period==="day"?4:(aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7);
-              if(i%step!==0) return null;
+              let show=false;
+              if(period==="day") show=(i%4===0);
+              else if(period==="month") show=[1,5,10,15,20,25,30].includes(i+1);
+              else show=(aggData.length<=7?true:aggData.length<=14?i%2===0:i%5===0);
+              if(!show) return null;
               const xLabel=period==="day"?`${d.label}:00`:d.label;
               return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{xLabel}</text>;
             })}
