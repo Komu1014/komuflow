@@ -435,6 +435,82 @@ function LabelManager({labels,onSave,initialLabelId}){
   const [ced,setCed]=useState(null);
   const [selLabel,setSelLabel]=useState(initialLabelId||null); // selected label for detail view
 
+  // Drag-sort state
+  const dragSrc=useRef(null);
+  const [dragOver,setDragOver]=useState(null);
+
+  const handleDragStart=(e,idx,parentId)=>{dragSrc.current={idx,parentId};e.dataTransfer.effectAllowed="move";};
+  const handleDragOver=(e,idx,parentId)=>{e.preventDefault();if(dragSrc.current&&dragSrc.current.parentId===parentId&&dragSrc.current.idx!==idx)setDragOver({idx,parentId});};
+  const handleDrop=(e,idx,parentId)=>{
+    e.preventDefault();
+    if(!dragSrc.current||dragSrc.current.parentId!==parentId){setDragOver(null);return;}
+    const from=dragSrc.current.idx;
+    if(from===idx){setDragOver(null);return;}
+    if(!parentId){
+      const next=[...list];const [item]=next.splice(from,1);next.splice(idx,0,item);
+      setList(next);onSave(next);
+    } else {
+      const next=list.map(l=>{
+        if(l.id!==parentId) return l;
+        const ch=[...(l.children||[])];const [item]=ch.splice(from,1);ch.splice(idx,0,item);
+        return {...l,children:ch};
+      });
+      setList(next);onSave(next);
+    }
+    setDragOver(null);dragSrc.current=null;
+  };
+  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;};
+
+  // Long-press for touch drag-sort
+  const touchDrag=useRef({active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null});
+  const handleTouchStart=(e,idx,parentId,itemsGetter)=>{
+    const touch=e.touches[0];
+    touchDrag.current.timer=setTimeout(()=>{
+      touchDrag.current.active=true;
+      touchDrag.current.src=idx;
+      touchDrag.current.parentId=parentId;
+      touchDrag.current.startY=touch.clientY;
+      touchDrag.current.items=itemsGetter();
+      setDragOver({idx,parentId});
+      // vibrate if supported
+      if(navigator.vibrate) navigator.vibrate(30);
+    },400);
+    touchDrag.current.startY=touch.clientY;
+  };
+  const handleTouchMove=(e,parentId)=>{
+    if(!touchDrag.current.active) return;
+    e.preventDefault();
+    const touch=e.touches[0];
+    const el=document.elementFromPoint(touch.clientX,touch.clientY);
+    const row=el?.closest('[data-sortable-idx]');
+    if(row){
+      const overIdx=parseInt(row.dataset.sortableIdx,10);
+      const overParent=row.dataset.sortableParent||null;
+      if(overParent===parentId&&overIdx!==touchDrag.current.src) setDragOver({idx:overIdx,parentId});
+    }
+  };
+  const handleTouchEnd=(e,parentId)=>{
+    clearTimeout(touchDrag.current.timer);
+    if(!touchDrag.current.active){touchDrag.current={active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null};return;}
+    const from=touchDrag.current.src;
+    const to=dragOver?.parentId===parentId?dragOver.idx:from;
+    if(from!==to){
+      if(!parentId){
+        const next=[...list];const [item]=next.splice(from,1);next.splice(to,0,item);
+        setList(next);onSave(next);
+      } else {
+        const next=list.map(l=>{
+          if(l.id!==parentId) return l;
+          const ch=[...(l.children||[])];const [item]=ch.splice(from,1);ch.splice(to,0,item);
+          return {...l,children:ch};
+        });
+        setList(next);onSave(next);
+      }
+    }
+    touchDrag.current={active:false,src:null,parentId:null,timer:null,startY:0,items:null,ghost:null};
+    setDragOver(null);
+  };
+
   const Form=({data,setData,title:t,onOk,onCancel,onDelete})=>{
     // Use uncontrolled refs to avoid IME/emoji input bugs
     const emojiRef=useRef();
@@ -511,24 +587,36 @@ function LabelManager({labels,onSave,initialLabelId}){
       </div>
       {ed?.id===lb.id&&<Form data={ed} setData={setEd} title="编辑标签"
         onCancel={()=>setEd(null)}
-        onDelete={()=>{setList(p=>p.filter(x=>x.id!==lb.id));setEd(null);setSelLabel(null);}}
-        onOk={(latest)=>{setList(p=>p.map(x=>x.id===lb.id?{...ed,...latest}:x));setEd(null);setSelLabel(null);}}/>}
+        onDelete={()=>{const updated=list.filter(x=>x.id!==lb.id);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}
+        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...ed,...latest}:x);setList(updated);onSave(updated);setEd(null);setSelLabel(null);}}/>}
       <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:8}}>子标签</div>
-      {(lb.children||[]).map(c=><div key={c.id}>
+      {(lb.children||[]).map((c,cidx)=><div key={c.id}
+        draggable
+        data-sortable-idx={cidx}
+        data-sortable-parent={lb.id}
+        onDragStart={e=>handleDragStart(e,cidx,lb.id)}
+        onDragOver={e=>handleDragOver(e,cidx,lb.id)}
+        onDrop={e=>handleDrop(e,cidx,lb.id)}
+        onDragEnd={handleDragEnd}
+        onTouchStart={e=>handleTouchStart(e,cidx,lb.id,()=>lb.children||[])}
+        onTouchMove={e=>handleTouchMove(e,lb.id)}
+        onTouchEnd={e=>handleTouchEnd(e,lb.id)}
+        style={{opacity:dragOver?.parentId===lb.id&&dragSrc.current?.idx===cidx?0.4:1,transition:"opacity 0.15s",outline:dragOver?.parentId===lb.id&&dragOver?.idx===cidx?"2px dashed #555":"none",borderRadius:10,marginBottom:4}}>
         <div onClick={()=>{ setCed({parentId:lb.id,child:{...c},isNew:false}); setEd(null); }}
-          style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ced?.child?.id===c.id?"#f0f7ff":"#f8f8f8",borderRadius:10,cursor:"pointer",marginBottom:4,border:ced?.child?.id===c.id?"1.5px solid #555":"1.5px solid transparent"}}>
+          style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ced?.child?.id===c.id?"#f0f7ff":"#f8f8f8",borderRadius:10,cursor:"pointer",border:ced?.child?.id===c.id?"1.5px solid #555":"1.5px solid transparent"}}>
+          <span style={{fontSize:12,color:"#c0c0c0",cursor:"grab",touchAction:"none"}}>⠿</span>
           <div style={{width:8,height:8,borderRadius:"50%",background:c.color||lb.color}}/>
           <span style={{fontSize:13,flex:1}}>{c.emoji} {c.name}</span>
         </div>
         {ced?.parentId===lb.id&&ced?.child?.id===c.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="编辑子标签"
           onCancel={()=>setCed(null)}
-          onDelete={()=>{setList(p=>p.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x));setCed(null);}}
-          onOk={(latest)=>{setList(p=>p.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x));setCed(null);}}/>}
+          onDelete={()=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x);setList(updated);onSave(updated);setCed(null);}}
+          onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x);setList(updated);onSave(updated);setCed(null);}}/>}
       </div>)}
       <button onClick={()=>{setCed({parentId:lb.id,child:{id:uuid(),name:"",emoji:"🏷",color:lb.color,keywords:[]},isNew:true});setEd(null);}} style={{fontSize:12,color:"#555",border:"1.5px solid #e5e7eb",background:"white",cursor:"pointer",padding:"7px 14px",borderRadius:10,marginTop:6}}>+ 添加子标签</button>
       {ced?.isNew&&ced?.parentId===lb.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="新建子标签"
         onCancel={()=>setCed(null)}
-        onOk={(latest)=>{setList(p=>p.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x));setCed(null);}}/>}
+        onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x);setList(updated);onSave(updated);setCed(null);}}/>}
       <div style={{display:"flex",gap:10,marginTop:16}}>
         <button onClick={()=>onSave(list)} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>完成</button>
       </div>
@@ -536,11 +624,23 @@ function LabelManager({labels,onSave,initialLabelId}){
   }
 
   return <div>
-    {list.map(l=><div key={l.id} style={{marginBottom:4}}>
+    {list.map((l,idx)=><div key={l.id}
+      draggable
+      data-sortable-idx={idx}
+      data-sortable-parent=""
+      onDragStart={e=>handleDragStart(e,idx,null)}
+      onDragOver={e=>handleDragOver(e,idx,null)}
+      onDrop={e=>handleDrop(e,idx,null)}
+      onDragEnd={handleDragEnd}
+      onTouchStart={e=>handleTouchStart(e,idx,null,()=>list)}
+      onTouchMove={e=>handleTouchMove(e,null)}
+      onTouchEnd={e=>handleTouchEnd(e,null)}
+      style={{marginBottom:4,opacity:dragOver?.parentId===null&&dragSrc.current?.idx===idx?0.4:1,transition:"opacity 0.15s",outline:dragOver?.parentId===null&&dragOver?.idx===idx?"2px dashed #555":"none",borderRadius:12}}>
         <div
           onClick={()=>{ setSelLabel(l.id); setEd(null); setCed(null); }}
           style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#f8f8f8",borderRadius:12,cursor:"pointer",border:"1.5px solid transparent",transition:"all 0.15s"}}
         >
+          <span style={{fontSize:13,color:"#c0c0c0",marginRight:2,cursor:"grab",touchAction:"none"}}>⠿</span>
           <div style={{width:9,height:9,borderRadius:"50%",background:l.color,flexShrink:0}}/>
           <span style={{fontSize:16,marginRight:2}}>{l.emoji}</span>
           <span style={{flex:1,fontSize:13,fontWeight:600}}>{l.name}</span>
@@ -554,7 +654,7 @@ function LabelManager({labels,onSave,initialLabelId}){
     </div>}
     {ed?.isNew&&<Form data={ed} setData={setEd} title="新建标签"
       onCancel={()=>setEd(null)}
-      onOk={(latest)=>{setList(p=>[...p,{...ed,...latest}]);setEd(null);}}/>}
+      onOk={(latest)=>{const updated=[...list,{...ed,...latest}];setList(updated);onSave(updated);setEd(null);}}/>}
   </div>;
 }
 
@@ -722,7 +822,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
       <button onClick={()=>setShowLabelPicker(p=>!p)} style={{width:36,height:36,borderRadius:10,border:`2px solid ${lb.color}`,background:lb.color+"22",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} title="选择标签">
         {lb.emoji}
       </button>
-      <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder="事项名称…" style={{...INP,flex:1,fontSize:15,fontWeight:600,border:"none",padding:"4px 0",borderBottom:"2px solid #f0f0f0",borderRadius:0}}/>
+      <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder="事项名称…" style={{...INP,flex:1,fontSize:15,fontWeight:600,border:"none",padding:"4px 0",borderBottom:"2px solid #f0f0f0",borderRadius:0,color:"#111"}}/>
     </div>
     {showLabelPicker&&<div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",marginBottom:12,border:"1px solid #f0f0f0"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:8}}>选择标签</div>
@@ -818,8 +918,8 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
 
       <div>
         <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>笔记</div>
-        <textarea value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="添加备注…" className="notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"vertical",fontSize:16}}
-          onFocus={e=>{const el=e.target;setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"nearest"}),300);}}
+        <textarea value={form.notes} onChange={e=>{setForm(p=>({...p,notes:e.target.value}));e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}} placeholder="添加备注…" className="notes-textarea" style={{...INP,width:"100%",minHeight:70,resize:"none",fontSize:16,overflow:"hidden"}}
+          onFocus={e=>{e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";setTimeout(()=>e.target.scrollIntoView({behavior:"smooth",block:"nearest"}),300);}}
           onBlur={()=>{setTimeout(()=>{window.scrollTo(0,0);if(window.visualViewport){const vv=window.visualViewport;if(vv.scale>1){document.documentElement.style.transform="scale(1)";document.documentElement.style.transform="";}}}  ,100);}}/>
       </div>
     </div>}
@@ -1044,6 +1144,8 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
     return aTime-bTime;
   });
   const allDayEvs=dEvs.filter(e=>e.allDay&&!(e.endDate&&e.endDate!==e.date&&e.date!==dateStr));
+  const [collapsed,setCollapsed]=useState({});
+  const toggleSection=key=>setCollapsed(p=>({...p,[key]:!p[key]}));
   return <>
     <div style={{padding:"16px 20px 10px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
       <div>
@@ -1064,38 +1166,40 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
       <span style={{fontSize:13,color:"#555",lineHeight:"1.5"}}>共 <b style={{color:"#111"}}>{dEvs.filter(e=>e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay||(e.endDate&&e.endDate!==e.date)).length}</b> 项 · 完成 <b style={{color:"#555"}}>{dEvs.filter(e=>(e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay)&&isDoneOn(e,dateStr)).length}</b></span>
     </div>
     {allDayEvs.length>0&&<div>
-      <div style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px"}}>
+      <div onClick={()=>toggleSection("allday")} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
         <span style={{fontSize:17}}>🌞</span>
         <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>全天</span>
         <span style={{fontSize:14,color:"#c0c0c0"}}>{allDayEvs.length}</span>
+        <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto"}}>{collapsed["allday"]?"▶":"▼"}</span>
       </div>
-      <div data-task-list="1" style={{padding:"0 20px"}}>{allDayEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>
+      {!collapsed["allday"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{allDayEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
     </div>}
     {(()=>{
       const carryEvs=dEvs.filter(e=>e.endDate&&e.endDate!==e.date&&e.date!==dateStr);
       if(carryEvs.length===0) return null;
       return <div>
-        <div style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px"}}>
+        <div onClick={()=>toggleSection("carry")} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 20px 4px",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
           <span style={{fontSize:17}}>🌙</span>
           <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>昨日延续</span>
           <span style={{fontSize:14,color:"#c0c0c0"}}>{carryEvs.length}</span>
+          <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto"}}>{collapsed["carry"]?"▶":"▼"}</span>
         </div>
-        <div data-task-list="1" style={{padding:"0 20px"}}>{carryEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>
+        {!collapsed["carry"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{carryEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
     })()}
     {sections.filter(sec=>sec.key!=="allday").map(sec=>{
       const isCarry=e=>(e.endDate&&e.endDate!==e.date&&e.date!==dateStr);
       const evs=dEvs.filter(e=>!isCarry(e)&&!e.allDay&&sec.test(e));
       return <div key={sec.key}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px 4px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:7}}>
+        <div onClick={()=>toggleSection(sec.key)} style={{display:"flex",alignItems:"center",padding:"8px 20px 4px",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,flex:1}}>
             <span style={{fontSize:17}}>{sec.icon}</span>
             <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>{sec.label}</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{evs.length}</span>
           </div>
-          <button onClick={()=>onAdd(dateStr,sec.hour)} style={{width:26,height:26,border:"none",borderRadius:"50%",background:"#f2f2f7",cursor:"pointer",fontSize:18,color:"#8e8e93",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+          <span style={{fontSize:12,color:"#c0c0c0"}}>{collapsed[sec.key]?"▶":"▼"}</span>
         </div>
-        {evs.length>0&&<div data-task-list="1" style={{padding:"0 20px"}}>{evs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
+        {!collapsed[sec.key]&&evs.length>0&&<div data-task-list="1" style={{padding:"0 20px"}}>{evs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
     })}
     {(()=>{
@@ -1105,15 +1209,15 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
       // Sort: tasks created on this date first, then older tasks
       const sorted=[...noTimeEvs].sort((a,b)=>a.date===dateStr?-1:b.date===dateStr?1:a.date<b.date?-1:1);
       return <div key="notime">
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px 4px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:7}}>
+        <div onClick={()=>toggleSection("notime")} style={{display:"flex",alignItems:"center",padding:"8px 20px 4px",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,flex:1}}>
             <span style={{fontSize:17}}>📋</span>
             <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>尚未安排时间</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{sorted.length}</span>
           </div>
-          <button onClick={()=>onAdd(dateStr,null)} style={{width:26,height:26,border:"none",borderRadius:"50%",background:"#f2f2f7",cursor:"pointer",fontSize:18,color:"#8e8e93",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+          <span style={{fontSize:12,color:"#c0c0c0"}}>{collapsed["notime"]?"▶":"▼"}</span>
         </div>
-        <div data-task-list="1" style={{padding:"0 20px"}}>{sorted.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>
+        {!collapsed["notime"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{sorted.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
     })()}
   </>;
@@ -1362,7 +1466,7 @@ function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
         </div>
       ))}
     </div>
-    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:26,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10,WebkitTapHighlightColor:"transparent"}}>+</button>
+    <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:28,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,zIndex:10,WebkitTapHighlightColor:"transparent",padding:0}}>+</button>
   </div>;
 }
 
@@ -1976,7 +2080,7 @@ function StatsPage({events,labels,onOpen}){
   // "day" granularity (month/year cells): cap at 240 min (4h)
   const heatCellColor=(domLabelId, mins, granularity)=>{
     if(!mins) return "#f0f0f0";
-    const cap=granularity==="hour"?60:240;
+    const cap=granularity==="hour"?60:120; // day cap: 2h for richer color variation
     const a=Math.min(1, 0.18+0.82*(mins/cap));
     const domLb=domLabelId?flat.find(l=>l.id===domLabelId):null;
     const baseColor=domLb?domLb.color:(hLb?hLb.color:"#8e8e93");
@@ -2200,26 +2304,48 @@ function StatsPage({events,labels,onOpen}){
         </div>
       </div>}
 
-      {/* Month view: fixed 11px square cells matching week view, centered with side padding */}
+      {/* Month view: hourly grid — rows=days, cols=hours (24), same small cells as week view */}
       {period==="month"&&(()=>{
         const base=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);
-        const firstDow=base.getDay();
         const daysInMonth=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
-        const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
-        const CS=11;const GAP=3;
+        const CS=11;const GAP=2;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-          <div style={{display:"grid",gridTemplateColumns:`repeat(7,${CS}px)`,gap:GAP,marginBottom:3}}>
-            {WD.map(w=><div key={w} style={{width:CS,fontSize:9,color:"#8e8e93",textAlign:"center"}}>{w}</div>)}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:`repeat(7,${CS}px)`,gap:GAP}}>
-            {Array.from({length:totalCells},(_,i)=>{
-              const dayNum=i-firstDow;
-              if(dayNum<0||dayNum>=daysInMonth) return <div key={i} style={{width:CS,height:CS}}/>;
-              const item=heatData[dayNum]||{mins:0,domLabel:null};
-              const bg=heatCellColor(item.domLabel,item.mins,"day");
-              return <div key={i} title={`${fmtDate(new Date(base.getFullYear(),base.getMonth(),dayNum+1))}: ${fmtMins(item.mins)}`}
-                style={{width:CS,height:CS,borderRadius:3,background:bg}}/>;
+          <div style={{display:"inline-block"}}>
+            {/* Hour header */}
+            <div style={{display:"flex",gap:GAP,marginBottom:2,paddingLeft:24}}>
+              {Array.from({length:24},(_,h)=><div key={h} style={{width:CS,flexShrink:0,fontSize:7,color:"#aaa",textAlign:"center"}}>{h%6===0?pad(h):""}</div>)}
+            </div>
+            {Array.from({length:daysInMonth},(_,di)=>{
+              const d=new Date(base.getFullYear(),base.getMonth(),di+1);
+              const ds=fmtDate(d);
+              const dayItem=heatData[di]||{d:ds,mins:0,domLabel:null,byLabel:{}};
+              // Build per-hour minutes from events on this day
+              const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
+              const isHeatIsAll=heatIds.includes("all");
+              const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
+              return <div key={di} style={{display:"flex",alignItems:"center",gap:GAP,marginBottom:GAP}}>
+                <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>
+                {Array.from({length:24},(_,h)=>{
+                  const hStart=h*60,hEnd=(h+1)*60;
+                  const hEvs=filtEvs.filter(e=>{
+                    const eStart=parseMins(e.startTime);
+                    const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
+                    const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
+                    return eStart<hEnd&&eEndAdj>hStart;
+                  });
+                  const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
+                  let domLb=null,domM=0;Object.entries(byLb).forEach(([lid,m])=>{if(m>domM){domM=m;domLb=lid;}});
+                  const mins=hEvs.reduce((s,e)=>s+getDur(e),0);
+                  const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"hour");
+                  return <div key={h} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
+                })}
+              </div>;
             })}
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:4,paddingLeft:24}}>
+              <span style={{fontSize:9,color:"#aaa"}}>00:00</span>
+              <span style={{fontSize:9,color:"#aaa"}}>12:00</span>
+              <span style={{fontSize:9,color:"#aaa"}}>23:00</span>
+            </div>
           </div>
         </div>;
       })()}
@@ -2265,9 +2391,121 @@ function StatsPage({events,labels,onOpen}){
       <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"center"}}>
         <span style={{fontSize:10,color:"#8e8e93"}}>{(period==="day"||period==="week")?"0":"0h"}</span>
         {[0.18,0.36,0.55,0.73,1].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
-        <span style={{fontSize:10,color:"#8e8e93"}}>{(period==="day"||period==="week")?"60m":"4h+"}</span>
+        <span style={{fontSize:10,color:"#8e8e93"}}>{(period==="day"||period==="week")?"60m":"2h+"}</span>
       </div>
     </div>
+
+    {/* ── Bar + Line combo chart ── */}
+    {(()=>{
+      // Build daily data for the selected period
+      const chartDays=[];
+      let cStart;
+      if(period==="day"){cStart=addDays(new Date(),-offset);}
+      else if(period==="week"){const s=new Date();s.setDate(s.getDate()-s.getDay()-offset*7);cStart=s;}
+      else if(period==="month"){cStart=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);}
+      else{cStart=new Date(new Date().getFullYear()-offset,0,1);}
+      const cDays=period==="year"?365:period==="month"?new Date(cStart.getFullYear(),cStart.getMonth()+1,0).getDate():period==="week"?7:1;
+      for(let i=0;i<cDays;i++){const d=addDays(cStart,i);const ds=fmtDate(d);chartDays.push({ds,d});}
+
+      // Group by label for stacking, and compute total per day
+      const barData=chartDays.map(({ds})=>{
+        const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds));
+        const byLb={};
+        dayEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
+        const total=Object.values(byLb).reduce((s,v)=>s+v,0);
+        return{ds,byLb,total};
+      });
+
+      // Aggregate by week for year view, by day otherwise
+      const aggData=(()=>{
+        if(period==="year"){
+          const weeks=[];
+          for(let wi=0;wi<53;wi++){
+            const slice=barData.slice(wi*7,(wi+1)*7);
+            if(slice.length===0) break;
+            const total=slice.reduce((s,d)=>s+d.total,0);
+            const byLb={};
+            slice.forEach(d=>Object.entries(d.byLb).forEach(([lid,m])=>{byLb[lid]=(byLb[lid]||0)+m;}));
+            const wkStart=slice[0].ds;const wk=new Date(wkStart+"T00:00:00");
+            weeks.push({label:`W${wi+1}`,total,byLb,ds:wkStart});
+          }
+          return weeks;
+        }
+        return barData.map(({ds,total,byLb})=>{
+          const d=new Date(ds+"T00:00:00");
+          const label=period==="week"?WDF[d.getDay()]:period==="month"?`${d.getDate()}`:`${pad(d.getHours())}:00`;
+          return{label,total,byLb,ds};
+        });
+      })();
+
+      if(aggData.length===0) return null;
+      const maxVal=Math.max(...aggData.map(d=>d.total),1);
+      const H=100; // chart height px
+      const W_ITEM=Math.max(4,Math.min(28,Math.floor(280/aggData.length)));
+      const totalW=aggData.length*W_ITEM;
+      // Top 3 labels for stacked bars
+      const topLbs=lblStats.slice(0,4);
+
+      // Moving average for line (3-point)
+      const ma=aggData.map((d,i)=>{
+        const vals=[aggData[i-1],aggData[i],aggData[i+1]].filter(Boolean).map(x=>x.total);
+        return vals.reduce((s,v)=>s+v,0)/vals.length;
+      });
+
+      const svgW=totalW+32;
+      const svgH=H+28;
+
+      return <div style={{background:"white",borderRadius:20,padding:"16px 16px 12px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)"}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#111",marginBottom:8}}>时长分布</div>
+        <div style={{overflowX:"auto"}} className="hide-scrollbar">
+          <svg width={svgW} height={svgH} style={{display:"block",margin:"0 auto"}}>
+            {/* Y grid lines */}
+            {[0.25,0.5,0.75,1].map(f=>{
+              const y=H*(1-f)+4;
+              return <line key={f} x1={24} x2={svgW} y1={y} y2={y} stroke="#f0f0f0" strokeWidth={1}/>;
+            })}
+            {/* Bars */}
+            {aggData.map((d,i)=>{
+              const x=24+i*W_ITEM;
+              let stackY=H+4;
+              return <g key={i}>
+                {topLbs.length>0?topLbs.map(lb=>{
+                  const m=d.byLb[lb.id]||0;
+                  if(!m) return null;
+                  const bh=Math.max(1,(m/maxVal)*H);
+                  stackY-=bh;
+                  return <rect key={lb.id} x={x+1} y={stackY} width={Math.max(2,W_ITEM-2)} height={bh} fill={lb.color} opacity={0.75} rx={2}/>;
+                }):<rect x={x+1} y={H+4-(d.total/maxVal)*H} width={Math.max(2,W_ITEM-2)} height={(d.total/maxVal)*H} fill="#8e8e93" opacity={0.5} rx={2}/>}
+              </g>;
+            })}
+            {/* Line (moving average) */}
+            <polyline
+              points={ma.map((v,i)=>`${24+i*W_ITEM+W_ITEM/2},${H+4-(v/maxVal)*H}`).join(" ")}
+              fill="none" stroke="#333" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" opacity={0.7}/>
+            {/* Dots */}
+            {ma.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2} fill="#333" opacity={0.7}/>)}
+            {/* X labels — show every Nth */}
+            {aggData.map((d,i)=>{
+              const step=aggData.length<=7?1:aggData.length<=14?2:aggData.length<=31?5:7;
+              if(i%step!==0) return null;
+              return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{d.label}</text>;
+            })}
+            {/* Y labels */}
+            {[0,0.5,1].map(f=><text key={f} x={22} y={H*(1-f)+4+3} textAnchor="end" fontSize={8} fill="#aaa">{fmtMins(Math.round(maxVal*f))}</text>)}
+          </svg>
+        </div>
+        {topLbs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>
+          {topLbs.map(lb=><div key={lb.id} style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:8,height:8,borderRadius:2,background:lb.color,opacity:0.75}}/>
+            <span style={{fontSize:10,color:"#666"}}>{lb.emoji} {lb.name}</span>
+          </div>)}
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke="#333" strokeWidth={1.5}/></svg>
+            <span style={{fontSize:10,color:"#666"}}>移动平均</span>
+          </div>
+        </div>}
+      </div>;
+    })()}
 
     {detEv&&<Modal title="任务详情" onClose={()=>setDetEv(null)} width={400}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2339,7 +2577,18 @@ function RepeatDeleteModal({ev,instanceDate,onClose,onDelete}){
 }
 
 /* ══════ SIDEBAR ══════ */
-function Sidebar({tab,setTab,labels,onManage}){
+function Sidebar({tab,setTab,labels,onManage,onReorder}){
+  const dragSrc=useRef(null);
+  const [dragOver,setDragOver]=useState(null);
+  const handleDragStart=(e,idx)=>{dragSrc.current=idx;e.dataTransfer.effectAllowed="move";};
+  const handleDragOver=(e,idx)=>{e.preventDefault();if(dragSrc.current!=null&&dragSrc.current!==idx)setDragOver(idx);};
+  const handleDrop=(e,idx)=>{e.preventDefault();if(dragSrc.current==null){setDragOver(null);return;}const from=dragSrc.current;if(from!==idx&&onReorder){const next=[...labels];const [item]=next.splice(from,1);next.splice(idx,0,item);onReorder(next);}setDragOver(null);dragSrc.current=null;};
+  const handleDragEnd=()=>{setDragOver(null);dragSrc.current=null;};
+  // Touch long-press sort
+  const tDrag=useRef({active:false,src:null,timer:null});
+  const tStart=(e,idx)=>{tDrag.current.timer=setTimeout(()=>{tDrag.current.active=true;tDrag.current.src=idx;setDragOver(idx);if(navigator.vibrate)navigator.vibrate(30);},400);};
+  const tMove=(e,idx)=>{if(!tDrag.current.active)return;e.preventDefault();const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);const r=el?.closest('[data-sb-idx]');if(r){const oi=parseInt(r.dataset.sbIdx,10);if(oi!==tDrag.current.src)setDragOver(oi);}};
+  const tEnd=(e)=>{clearTimeout(tDrag.current.timer);if(tDrag.current.active&&onReorder){const from=tDrag.current.src,to=dragOver??from;if(from!==to){const next=[...labels];const [item]=next.splice(from,1);next.splice(to,0,item);onReorder(next);}}tDrag.current={active:false,src:null,timer:null};setDragOver(null);};
   return <div style={{width:240,background:"#f7f7f9",borderRight:"1px solid #ebebeb",display:"flex",flexDirection:"column",padding:"20px 0 16px",flexShrink:0,overflowY:"auto"}}>
     <div style={{padding:"0 16px 16px",borderBottom:"1px solid #ebebeb",marginBottom:12,flexShrink:0}}>
       <div style={{fontSize:17,fontWeight:900,color:"#111",letterSpacing:-0.5}}>日程</div>
@@ -2348,8 +2597,19 @@ function Sidebar({tab,setTab,labels,onManage}){
     {[{id:"today",icon:"🏠",l:"今天"},{id:"calendar",icon:"📅",l:"日历"},{id:"stats",icon:"📊",l:"统计"}].map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",border:"none",background:tab===n.id?"#e5e5ea":"transparent",cursor:"pointer",textAlign:"left",justifyContent:"flex-start",width:"100%",borderRadius:0,color:tab===n.id?"#111":"#555",WebkitTextFillColor:tab===n.id?"#111":"#555",fontWeight:tab===n.id?700:400,fontSize:14}}><span>{n.icon}</span>{n.l}</button>)}
     <div style={{margin:"16px 16px 0"}}>
       <div style={{fontSize:10,fontWeight:700,color:"#8e8e93",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>标签</div>
-      {labels.map(lb=><div key={lb.id}>
+      {labels.map((lb,idx)=><div key={lb.id}
+        draggable
+        data-sb-idx={idx}
+        onDragStart={e=>handleDragStart(e,idx)}
+        onDragOver={e=>handleDragOver(e,idx)}
+        onDrop={e=>handleDrop(e,idx)}
+        onDragEnd={handleDragEnd}
+        onTouchStart={e=>tStart(e,idx)}
+        onTouchMove={e=>tMove(e,idx)}
+        onTouchEnd={tEnd}
+        style={{opacity:dragSrc.current===idx?0.4:1,outline:dragOver===idx?"2px dashed #aaa":"none",borderRadius:7,transition:"opacity 0.15s"}}>
         <button onClick={()=>onManage(lb.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
+          <span style={{fontSize:11,color:"#c0c0c0",marginRight:2}}>⠿</span>
           <div style={{width:8,height:8,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
           <span style={{fontSize:13,color:"#333",fontWeight:500}}>{lb.emoji} {lb.name}</span>
         </button>
@@ -2518,10 +2778,10 @@ export default function App(){
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
-    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input,textarea,select{font-size:16px!important;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:16px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
+    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;}input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}@media(min-width:480px){input,textarea,select{font-size:inherit!important;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.label-edit-input{font-size:14px!important;}@media(min-width:768px){.label-edit-input{font-size:12px!important;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:13px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:16px!important;}@media(min-width:768px){.notes-textarea{font-size:11px!important;}}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
-          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})}/>
+          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
               <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
