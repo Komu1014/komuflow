@@ -2350,10 +2350,9 @@ function StatsPage({events,labels,onOpen}){
         const numCells=isMobile?12:24;
         const hoursPerCell=isMobile?2:1;
         // Desktop/iPad: fixed 11px (same as week view); mobile: shrink to fit two columns side-by-side
-        // Layout per row: [22px label] [numCells * CS + (numCells-1)*GAP] [6px gap] [22px label] [numCells * CS + (numCells-1)*GAP]
-        // Total = 32px padding + 44px labels + 6px col-gap + 2*numCells*CS + 2*(numCells-1)*GAP
+        // Stats page has 16px padding each side; layout per row: [22px label][numCells*CS+(numCells-1)*GAP][6px gap][22px label][numCells*CS+(numCells-1)*GAP]
         const CS=isMobile
-          ? Math.max(5, Math.floor((window.innerWidth - 32 - 44 - 6 - 2*(numCells-1)*GAP) / (numCells*2)))
+          ? Math.floor((window.innerWidth - 32 - 32 - 44 - 6 - 2*(numCells-1)*GAP) / (numCells*2))
           : 11;
         const isOdd=daysInMonth%2===1;
         return <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
