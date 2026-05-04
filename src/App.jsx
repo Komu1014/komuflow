@@ -329,14 +329,21 @@ function CustomSelect({value, onChange, options, style={}}){
 /* ══════ COLOR PICKER ══════ */
 function ColorPicker({value,onChange}){
   const [hex,setHex]=useState(value||"#4A90D9");
+  // Keep in sync if parent resets value (e.g. new label)
+  const prevValue=useRef(value);
+  useEffect(()=>{if(value&&value!==prevValue.current){setHex(value);prevValue.current=value;}},[value]);
   const ok=h=>/^#[0-9A-Fa-f]{6}$/.test(h);
+  const commit=h=>{if(ok(h)){prevValue.current=h;onChange(h);}};
   return <div>
     <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-      {PRESETS.map(c=><div key={c} onClick={()=>{setHex(c);onChange(c);}} style={{width:22,height:22,borderRadius:6,background:c,cursor:"pointer",border:hex===c?"2.5px solid #333":"2px solid transparent"}}/>)}
+      {PRESETS.map(c=><div key={c} onClick={()=>{setHex(c);commit(c);}} style={{width:22,height:22,borderRadius:6,background:c,cursor:"pointer",border:hex===c?"2.5px solid #333":"2px solid transparent"}}/>)}
     </div>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       <div style={{width:26,height:26,borderRadius:6,background:ok(hex)?hex:"#ccc",border:"1px solid #eee"}}/>
-      <input value={hex} onChange={e=>{setHex(e.target.value);if(ok(e.target.value))onChange(e.target.value);}} className="color-hex-input" style={{...INP,width:90,fontFamily:"monospace"}} placeholder="#000000"/>
+      <input value={hex} onChange={e=>{setHex(e.target.value);commit(e.target.value);}}
+        className="color-hex-input"
+        style={{...INP,width:90,fontFamily:"monospace",fontSize:"max(16px,14px)"}}
+        placeholder="#000000"/>
     </div>
   </div>;
 }
@@ -425,6 +432,43 @@ function TimeScrollPicker({value, onChange, label, compact}){
       </div>
     </div>
     <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}@media(min-width:768px){.time-scroll-picker .time-picker-selected{font-size:13px!important;}.time-scroll-picker .time-picker-unselected{font-size:10px!important;}}`}</style>
+  </div>;
+}
+
+/* ══════ LABEL EDIT FORM (top-level so React never remounts it on parent re-render) ══════ */
+function LabelEditForm({data,setData,title:t,onOk,onCancel,onDelete}){
+  const emojiRef=useRef();
+  const nameRef=useRef();
+  const kwRef=useRef();
+  useEffect(()=>{if(emojiRef.current)emojiRef.current.value=data.emoji||"";},[data.id]);
+  useEffect(()=>{if(nameRef.current)nameRef.current.value=data.name||"";},[data.id]);
+  useEffect(()=>{if(kwRef.current)kwRef.current.value=(data.keywords||[]).join("，");},[data.id]);
+  const getLatest=()=>({
+    emoji:emojiRef.current?emojiRef.current.value:data.emoji,
+    name:nameRef.current?nameRef.current.value:data.name,
+    keywords:kwRef.current?kwRef.current.value.split(/[，,]/).map(s=>s.trim()).filter(Boolean):data.keywords,
+  });
+  return <div style={{background:"#f8f8f8",borderRadius:14,padding:"14px 16px",marginTop:10}}>
+    <div style={{fontSize:13,fontWeight:700,color:"#555",marginBottom:10}}>{t}</div>
+    <div style={{display:"flex",gap:8,marginBottom:10}}>
+      <input ref={emojiRef} defaultValue={data.emoji||""} placeholder="🏷" className="label-edit-input"
+        style={{...INP,width:54,fontSize:22,textAlign:"center",padding:"4px 6px"}} title="输入表情符号"/>
+      <input ref={nameRef} defaultValue={data.name||""} placeholder="标签名称" className="label-edit-input"
+        style={{...INP,flex:1}}/>
+    </div>
+    <ColorPicker value={data.color} onChange={c=>setData(p=>({...p,color:c}))}/>
+    <div style={{marginTop:10}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>自动分类关键词（顿号分隔）</div>
+      <input ref={kwRef} defaultValue={(data.keywords||[]).join("，")} placeholder="关键词1，关键词2"
+        className="label-edit-input" style={{...INP,width:"100%"}}/>
+      <div style={{fontSize:11,color:"#aaa",marginTop:3}}>检测到关键词时自动打标签</div>
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      <button onClick={onCancel} style={{flex:1,padding:"8px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",cursor:"pointer",fontSize:13,textAlign:"center"}}>取消</button>
+      {onDelete&&<button onClick={onDelete} style={{padding:"8px 14px",border:"none",borderRadius:10,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
+      <button onClick={()=>{const latest=getLatest();setData(p=>({...p,...latest}));onOk(latest);}}
+        style={{flex:2,padding:"8px",border:"none",borderRadius:10,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>保存</button>
+    </div>
   </div>;
 }
 
@@ -540,66 +584,8 @@ function LabelManager({labels,onSave,initialLabelId}){
   },[dragOver,list]);
   const displayList=previewList||list;
 
-  const Form=({data,setData,title:t,onOk,onCancel,onDelete})=>{
-    // Use uncontrolled refs to avoid IME/emoji input bugs
-    const emojiRef=useRef();
-    const nameRef=useRef();
-    const kwRef=useRef();
-    // Sync ref values when data changes externally (e.g. new form opened)
-    useEffect(()=>{if(emojiRef.current)emojiRef.current.value=data.emoji||"";},[data.id]);
-    useEffect(()=>{if(nameRef.current)nameRef.current.value=data.name||"";},[data.id]);
-    useEffect(()=>{if(kwRef.current)kwRef.current.value=(data.keywords||[]).join("，");},[data.id]);
-    const flush=()=>{
-      setData(p=>({
-        ...p,
-        emoji:emojiRef.current?emojiRef.current.value:p.emoji,
-        name:nameRef.current?nameRef.current.value:p.name,
-        keywords:kwRef.current?kwRef.current.value.split(/[，,]/).map(s=>s.trim()).filter(Boolean):p.keywords,
-      }));
-    };
-    const getLatest=()=>({
-      emoji:emojiRef.current?emojiRef.current.value:data.emoji,
-      name:nameRef.current?nameRef.current.value:data.name,
-      keywords:kwRef.current?kwRef.current.value.split(/[，,]/).map(s=>s.trim()).filter(Boolean):data.keywords,
-    });
-    return <div style={{background:"#f8f8f8",borderRadius:14,padding:"14px 16px",marginTop:10}}>
-      <div style={{fontSize:13,fontWeight:700,color:"#555",marginBottom:10}}>{t}</div>
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <input
-          ref={emojiRef}
-          defaultValue={data.emoji||""}
-          placeholder="🏷"
-          className="label-edit-input"
-          style={{...INP,width:54,fontSize:22,textAlign:"center",padding:"4px 6px"}}
-          title="输入表情符号"
-        />
-        <input
-          ref={nameRef}
-          defaultValue={data.name||""}
-          placeholder="标签名称"
-          className="label-edit-input"
-          style={{...INP,flex:1}}
-        />
-      </div>
-      <ColorPicker value={data.color} onChange={c=>setData(p=>({...p,color:c}))}/>
-      <div style={{marginTop:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>自动分类关键词（顿号分隔）</div>
-        <input
-          ref={kwRef}
-          defaultValue={(data.keywords||[]).join("，")}
-          placeholder="关键词1，关键词2"
-          className="label-edit-input"
-          style={{...INP,width:"100%"}}
-        />
-        <div style={{fontSize:11,color:"#aaa",marginTop:3}}>检测到关键词时自动打标签</div>
-      </div>
-      <div style={{display:"flex",gap:8,marginTop:10}}>
-        <button onClick={onCancel} style={{flex:1,padding:"8px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",cursor:"pointer",fontSize:13,textAlign:"center"}}>取消</button>
-        {onDelete&&<button onClick={onDelete} style={{padding:"8px 14px",border:"none",borderRadius:10,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
-        <button onClick={()=>{const latest=getLatest();setData(p=>({...p,...latest}));onOk(latest);}} style={{flex:2,padding:"8px",border:"none",borderRadius:10,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>保存</button>
-      </div>
-    </div>;
-  };
+    const flush=()=>{};  // no-op kept for compatibility
+    const getLatest=()=>({});
 
   // If a label is selected, show detail view with inline edit form like children
   if(selLabel){
@@ -614,7 +600,7 @@ function LabelManager({labels,onSave,initialLabelId}){
         <span style={{fontSize:15,fontWeight:700,flex:1}}>{lb.name}</span>
         <span style={{fontSize:14,color:"#c0c0c0"}}>{ed?.id===lb.id?"▲":"▼"}</span>
       </div>
-      {ed?.id===lb.id&&<Form data={ed} setData={setEd} title="编辑标签"
+      {ed?.id===lb.id&&<LabelEditForm data={ed} setData={setEd} title="编辑标签"
         onCancel={()=>setEd(null)}
         onDelete={()=>{const updated=list.filter(x=>x.id!==lb.id);setList(updated);syncList(updated);setEd(null);setSelLabel(null);}}
         onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...ed,...latest}:x);setList(updated);syncList(updated);setEd(null);setSelLabel(null);}}/>}
@@ -639,13 +625,13 @@ function LabelManager({labels,onSave,initialLabelId}){
           <div style={{width:8,height:8,borderRadius:"50%",background:c.color||lb.color}}/>
           <span style={{fontSize:13,flex:1}}>{c.emoji} {c.name}</span>
         </div>
-        {ced?.parentId===lb.id&&ced?.child?.id===c.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="编辑子标签"
+        {ced?.parentId===lb.id&&ced?.child?.id===c.id&&<LabelEditForm data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="编辑子标签"
           onCancel={()=>setCed(null)}
           onDelete={()=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).filter(ch=>ch.id!==c.id)}:x);setList(updated);syncList(updated);setCed(null);}}
           onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:(x.children||[]).map(ch=>ch.id===ced.child.id?{...ced.child,...latest}:ch)}:x);setList(updated);syncList(updated);setCed(null);}}/>}
       </div>)})()}
       <button onClick={()=>{setCed({parentId:lb.id,child:{id:uuid(),name:"",emoji:"🏷",color:lb.color,keywords:[]},isNew:true});setEd(null);}} style={{fontSize:12,color:"#555",border:"1.5px solid #e5e7eb",background:"white",cursor:"pointer",padding:"7px 14px",borderRadius:10,marginTop:6}}>+ 添加子标签</button>
-      {ced?.isNew&&ced?.parentId===lb.id&&<Form data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="新建子标签"
+      {ced?.isNew&&ced?.parentId===lb.id&&<LabelEditForm data={ced.child} setData={d=>setCed(p=>({...p,child:typeof d==="function"?d(p.child):d}))} title="新建子标签"
         onCancel={()=>setCed(null)}
         onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x);setList(updated);syncList(updated);setCed(null);}}/>}
       <div style={{display:"flex",gap:10,marginTop:16}}>
@@ -683,7 +669,7 @@ function LabelManager({labels,onSave,initialLabelId}){
       <button onClick={()=>{setEd({id:uuid(),name:"",emoji:"🏷",color:"#4A90D9",keywords:[],children:[],isNew:true});setCed(null);}} style={{flex:1,padding:"10px",border:"1.5px solid #555",borderRadius:12,background:"white",color:"#333",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>+ 新建标签</button>
       <button onClick={()=>onSave(list)} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>完成</button>
     </div>}
-    {ed?.isNew&&<Form data={ed} setData={setEd} title="新建标签"
+    {ed?.isNew&&<LabelEditForm data={ed} setData={setEd} title="新建标签"
       onCancel={()=>setEd(null)}
       onOk={(latest)=>{const updated=[...list,{...ed,...latest}];setList(updated);syncList(updated);setEd(null);}}/>}
   </div>;
@@ -1934,18 +1920,22 @@ function CalendarPage({events,labels,onOpen,onAdd}){
 
   const isTimeline=view==="week"||view==="day";
 
+  const [calFilterOpen,setCalFilterOpen]=useState(false);
   return <div ref={swipeCaptureRef} style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <div style={{padding:"10px 14px 8px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
       <div style={{display:"flex",background:"#f2f2f7",borderRadius:10,padding:2,gap:2}}>
         {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
+      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 8px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
+        <span>🏷</span>{calFilterIds.length>0&&<span style={{fontSize:10}}>{calFilterIds.length}</span>}
+      </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
       <button onClick={()=>step(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
     </div>
-    {/* Label filter chips — includes child labels */}
-    <div style={{paddingLeft:14,paddingRight:14,paddingBottom:6,flexShrink:0,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+    {/* Label filter chips — collapsible */}
+    {calFilterOpen&&<div style={{paddingLeft:14,paddingRight:14,paddingBottom:6,flexShrink:0,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
       <button onClick={()=>setCalFilterIds([])} style={{padding:"3px 10px",borderRadius:20,border:"none",background:calFilterIds.length===0?"#333":"#f0f0f0",color:calFilterIds.length===0?"white":"#555",fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"center"}}>全部</button>
       {flat.map(lb=>{
         const active=calFilterIds.includes(lb.id);
@@ -1956,7 +1946,7 @@ function CalendarPage({events,labels,onOpen,onAdd}){
           <span>{lb.emoji}</span><span>{lb.name}</span>
         </button>;
       })}
-    </div>
+    </div>}
     {isTimeline
       /* week/day: fixed header strip slides + shared scroll body */
       ? <>
@@ -2002,6 +1992,7 @@ function StatsPage({events,labels,onOpen}){
   const [period,setPeriod]=useState("month");
   const [offset,setOffset]=useState(0);
   const [heatIds,setHeatIds]=useState(["all"]);
+  const [heatFilterOpen,setHeatFilterOpen]=useState(false);
   const [expId,setExpId]=useState(null);
   const [detEv,setDetEv]=useState(null);
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
@@ -2276,8 +2267,14 @@ function StatsPage({events,labels,onOpen}){
     </div>}
 
     <div style={{background:"white",borderRadius:20,padding:16,marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)"}}>
-      <div style={{fontSize:14,fontWeight:800,color:"#111",marginBottom:8}}>热力图</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
+        <button onClick={()=>setHeatFilterOpen(p=>!p)}
+          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 8px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
+          <span>🏷</span>{!heatIds.includes("all")&&<span style={{fontSize:10}}>{heatIds.length}</span>}
+        </button>
+      </div>
+      {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
         {[{id:"all",emoji:"🌐",name:"全部"},...flat].map(lb=>{
           const sel=heatIds.includes(lb.id);
           return <button key={lb.id} onClick={()=>{
@@ -2294,7 +2291,7 @@ function StatsPage({events,labels,onOpen}){
             <span>{lb.emoji}</span><span>{lb.name}</span>
           </button>;
         })}
-      </div>
+      </div>}
 
       {period==="day"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
         <div style={{display:"inline-block"}}>
@@ -2565,9 +2562,10 @@ function StatsPage({events,labels,onOpen}){
               let show=false;
               if(period==="day") show=(i%4===0);
               else if(period==="month") show=[1,5,10,15,20,25,30].includes(i+1);
+              else if(period==="year") show=(i+1)===1||((i+1)%10===0);
               else show=(aggData.length<=7?true:aggData.length<=14?i%2===0:i%5===0);
               if(!show) return null;
-              const xLabel=period==="day"?`${d.label}:00`:d.label;
+              const xLabel=period==="day"?`${d.label}:00`:period==="year"?`W${i+1}`:d.label;
               return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{xLabel}</text>;
             })}
             {/* 24:00 end label for day view */}
