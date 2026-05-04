@@ -1928,7 +1928,7 @@ function CalendarPage({events,labels,onOpen,onAdd}){
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
       <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
-        <span>标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
+        <span>选择标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
       </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
@@ -2271,7 +2271,7 @@ function StatsPage({events,labels,onOpen}){
         <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
         <button onClick={()=>setHeatFilterOpen(p=>!p)}
           style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 9px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
-          <span>标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
+          <span>选择标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
         </button>
       </div>
       {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
