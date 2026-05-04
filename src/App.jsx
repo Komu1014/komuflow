@@ -1187,7 +1187,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <span style={{fontSize:17}}>🌞</span>
         <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>全天</span>
         <span style={{fontSize:14,color:"#c0c0c0"}}>{allDayEvs.length}</span>
-        <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto"}}>{collapsed["allday"]?"▶":"▼"}</span>
+        <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto",visibility:"hidden"}}>{collapsed["allday"]?"▶":"▼"}</span>
       </div>
       {!collapsed["allday"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{allDayEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
     </div>}
@@ -1199,7 +1199,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
           <span style={{fontSize:17}}>🌙</span>
           <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>昨日延续</span>
           <span style={{fontSize:14,color:"#c0c0c0"}}>{carryEvs.length}</span>
-          <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto"}}>{collapsed["carry"]?"▶":"▼"}</span>
+          <span style={{fontSize:12,color:"#c0c0c0",marginLeft:"auto",visibility:"hidden"}}>{collapsed["carry"]?"▶":"▼"}</span>
         </div>
         {!collapsed["carry"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{carryEvs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
@@ -1214,7 +1214,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
             <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>{sec.label}</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{evs.length}</span>
           </div>
-          <span style={{fontSize:12,color:"#c0c0c0"}}>{collapsed[sec.key]?"▶":"▼"}</span>
+          <span style={{fontSize:12,color:"#c0c0c0",visibility:"hidden"}}>{collapsed[sec.key]?"▶":"▼"}</span>
         </div>
         {!collapsed[sec.key]&&evs.length>0&&<div data-task-list="1" style={{padding:"0 20px"}}>{evs.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
@@ -1232,7 +1232,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
             <span style={{fontSize:16,fontWeight:700,color:"#222",lineHeight:"1.4"}}>尚未安排时间</span>
             <span style={{fontSize:14,color:"#c0c0c0"}}>{sorted.length}</span>
           </div>
-          <span style={{fontSize:12,color:"#c0c0c0"}}>{collapsed["notime"]?"▶":"▼"}</span>
+          <span style={{fontSize:12,color:"#c0c0c0",visibility:"hidden"}}>{collapsed["notime"]?"▶":"▼"}</span>
         </div>
         {!collapsed["notime"]&&<div data-task-list="1" style={{padding:"0 20px"}}>{sorted.map(ev=><EventCard key={ev.id} ev={ev} dateStr={dateStr} getLb={getLb} lightenHex={lightenHex} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} labels={labels}/>)}</div>}
       </div>;
@@ -1927,8 +1927,8 @@ function CalendarPage({events,labels,onOpen,onAdd}){
         {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
-      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 8px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
-        <span>🏷</span>{calFilterIds.length>0&&<span style={{fontSize:10}}>{calFilterIds.length}</span>}
+      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
+        <span>标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
       </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
@@ -2270,8 +2270,8 @@ function StatsPage({events,labels,onOpen}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
         <button onClick={()=>setHeatFilterOpen(p=>!p)}
-          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 8px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
-          <span>🏷</span>{!heatIds.includes("all")&&<span style={{fontSize:10}}>{heatIds.length}</span>}
+          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 9px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
+          <span>标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
         </button>
       </div>
       {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
