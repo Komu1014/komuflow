@@ -357,10 +357,10 @@ function ColorPicker({value,onChange}){
 
 /* ══════ MODAL ══════ */
 function Modal({title,onClose,children,width=440,hideHeader=false}){
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,willChange:"opacity",transform:"translateZ(0)"}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{max-height:95vh!important;}}`}</style>
-    <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0}}>
+    <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0,transform:"translateZ(0)",willChange:"transform"}}>
       {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
         <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
         <button onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
@@ -2595,7 +2595,7 @@ function StatsPage({events,labels,onOpen}){
         <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"0min":period==="week"?"0min":"0h"}</span>
         {[0.15,0.35,0.55,0.75,1.0].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
         <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"10min":period==="week"?"1h":period==="month"?"2h+":"12h+"}</span>
-        {(heatIsAll||heatIds.length>1)&&<span style={{fontSize:10,color:"#aaa",marginLeft:4}}>· 颜色=最长标签</span>}
+        {(heatIsAll||heatIds.length>1)&&null}
       </div>
     </div>
 
@@ -3099,7 +3099,7 @@ export default function App(){
     <div style={{flex:1,minHeight:0,display:tab==="stats"?"flex":"none",flexDirection:"column",overflow:"hidden"}}><StatsPage events={events} labels={labels} onOpen={openEv}/></div>
   </div>;
 
-  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
+  return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left",contain:"layout style"}}>
     <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:16px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
