@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
@@ -1373,7 +1373,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
 }
 
 /* ══════ TODAY PAGE ══════ */
-function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
+const TodayPage=React.memo(function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
   const getLb=id=>flat.find(l=>l.id===id)||{color:"#ccc",emoji:"📌",name:"未分类"};
   const [viewDate,setViewDate]=useState(todayStr());
@@ -1610,7 +1610,7 @@ function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
     </div>
     <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:28,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,zIndex:10,WebkitTapHighlightColor:"transparent",padding:"0 0 2px 0"}}>+</button>
   </div>;
-}
+});
 
 /* ══════ 24H TIMELINE ══════ */
 const HH=58;
@@ -1808,7 +1808,7 @@ function MonthGrid({cells,events,today,getLb,setCur,setView}){
 }
 
 /* ══════ CALENDAR PAGE ══════ */
-function CalendarPage({events,labels,onOpen,onAdd}){
+const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}){
   const [view,setView]=useState("month");
   const [cur,setCur]=useState(new Date());
   const [calFilterIds,setCalFilterIds]=useState([]); // empty = show all
@@ -2103,10 +2103,10 @@ function CalendarPage({events,labels,onOpen,onAdd}){
         </div>
     }
   </div>;
-}
+});
 
 /* ══════ STATS PAGE ══════ */
-function StatsPage({events,labels,onOpen}){
+const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   const [period,setPeriod]=useState("month");
   const [offset,setOffset]=useState(0);
   const [heatIds,setHeatIds]=useState(["all"]);
@@ -2811,7 +2811,7 @@ function RepeatDeleteModal({ev,instanceDate,onClose,onDelete}){
       </div>
     </div>
   </div>;
-}
+});
 
 /* ══════ SIDEBAR ══════ */
 function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
@@ -2952,18 +2952,17 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const bp=useBP();const desk=bp==="desktop";
   const [repeatDel,setRepeatDel]=useState(null);
-  const openEv=(ev,instanceDate)=>startTransition(()=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}));
-  const addEv=(date,hour)=>startTransition(()=>setModal({t:"add",date,hour}));
-  const toggleDone=(id,dateStr)=>setEvents(p=>p.map(e=>{
+  const openEv=useCallback((ev,instanceDate)=>setTimeout(()=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}),0),[]);
+  const addEv=useCallback((date,hour)=>setTimeout(()=>setModal({t:"add",date,hour}),0),[]);
+  const toggleDone=useCallback((id,dateStr)=>setEvents(p=>p.map(e=>{
     if(e.id!==id) return e;
     const isRepeat=e.repeat&&e.repeat!=="none";
     if(!isRepeat) return {...e,done:!e.done};
-    // For repeat tasks, toggle per-date in doneOverrides map
     const overrides={...(e.doneOverrides||{})};
     const ds=dateStr||todayStr();
     overrides[ds]=!overrides[ds];
     return {...e,doneOverrides:overrides};
-  }));
+  })),[]);
   const [notifPerm, askNotifPerm] = useNotifPermission();
   // Re-schedule notifications whenever events change
   useEffect(() => { rescheduleAll(events); }, [events]);
