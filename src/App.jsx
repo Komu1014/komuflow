@@ -2049,25 +2049,27 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
         {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
-      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:calFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
-        <span>{calFilterIds.length>0?`${calFilterIds.length}个标签`:"选择标签"}</span><span style={{opacity:0.5,fontSize:10}}>▾</span>
+      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
+        <span>选择标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
       </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
       <button onClick={()=>step(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
     </div>
     {/* Label filter chips — collapsible */}
-    {calFilterOpen&&<div style={{paddingLeft:14,paddingRight:14,paddingBottom:6,flexShrink:0,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-      <button onClick={()=>setCalFilterIds([])} style={{padding:"3px 10px",borderRadius:20,border:"none",background:calFilterIds.length===0?"#333":"#f0f0f0",color:calFilterIds.length===0?"white":"#555",fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"center"}}>全部</button>
-      {flat.map(lb=>{
-        const active=calFilterIds.includes(lb.id);
-        const isChild=!!lb._parent;
-        return <button key={lb.id} onClick={()=>setCalFilterIds(p=>active?p.filter(x=>x!==lb.id):[...p,lb.id])}
-          style={{padding:"3px 10px",borderRadius:20,border:active?`1.5px solid ${lb.color}`:"1.5px solid transparent",background:active?lb.color+"22":"#f0f0f0",color:active?lb.color:"#555",fontSize:isChild?10:11,fontWeight:active?700:400,cursor:"pointer",textAlign:"center",display:"flex",alignItems:"center",gap:3,opacity:isChild?0.85:1}}>
-          {isChild&&<span style={{fontSize:9,color:active?lb.color:"#aaa"}}>#</span>}
-          <span>{lb.emoji}</span><span>{lb.name}</span>
-        </button>;
-      })}
+    {calFilterOpen&&<div style={{padding:"6px 14px 8px",flexShrink:0}}>
+      <div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",border:"1px solid #f0f0f0",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        <button onClick={()=>setCalFilterIds([])} style={{padding:"5px 10px",borderRadius:20,border:"none",background:calFilterIds.length===0?"#555":"#f0f0f0",color:calFilterIds.length===0?"white":"#555",fontSize:11,fontWeight:calFilterIds.length===0?700:400,cursor:"pointer"}}>全部</button>
+        {flat.map(lb=>{
+          const active=calFilterIds.includes(lb.id);
+          const isChild=!!lb._parent;
+          return <button key={lb.id} onClick={()=>setCalFilterIds(p=>active?p.filter(x=>x!==lb.id):[...p,lb.id])}
+            style={{padding:"5px 10px",borderRadius:20,border:"none",background:active?lb.color+"dd":"#f0f0f0",color:active?"white":"#555",fontSize:isChild?10:11,fontWeight:active?700:400,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
+            {isChild&&<span style={{fontSize:9,opacity:0.6}}>#</span>}
+            <span>{lb.emoji}</span><span>{lb.name}</span>
+          </button>;
+        })}
+      </div>
     </div>}
     {isTimeline
       /* week/day: fixed header strip slides + shared scroll body */
@@ -2420,27 +2422,29 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
         <button onClick={()=>setHeatFilterOpen(p=>!p)}
-          style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:heatFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
-          <span>{heatIds.includes("all")?"选择标签":`${heatIds.length}个标签`}</span><span style={{opacity:0.5,fontSize:10}}>▾</span>
+          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 9px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
+          <span>选择标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
         </button>
       </div>
-      {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
-        {[{id:"all",emoji:"🌐",name:"全部"},...flat].map(lb=>{
-          const sel=heatIds.includes(lb.id);
-          return <button key={lb.id} onClick={()=>{
-            if(lb.id==="all"){setHeatIds(["all"]);return;}
-            setHeatIds(prev=>{
-              const filtered=prev.filter(x=>x!=="all");
-              if(filtered.includes(lb.id)){
-                const next=filtered.filter(x=>x!==lb.id);
-                return next.length===0?["all"]:next;
-              }
-              return [...filtered,lb.id];
-            });
-          }} style={{padding:"5px 10px",border:`1.5px solid ${sel?(lb.color||"#333"):"#e5e7eb"}`,borderRadius:20,background:sel?(lb.color||"#333"):"white",color:sel?"white":"#555",cursor:"pointer",fontSize:12,fontWeight:sel?700:400,display:"flex",alignItems:"center",gap:4}}>
-            <span>{lb.emoji}</span><span>{lb.name}</span>
-          </button>;
-        })}
+      {heatFilterOpen&&<div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",marginBottom:12,border:"1px solid #f0f0f0"}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {[{id:"all",emoji:"🌐",name:"全部"},...flat].map(lb=>{
+            const sel=heatIds.includes(lb.id);
+            return <button key={lb.id} onClick={()=>{
+              if(lb.id==="all"){setHeatIds(["all"]);return;}
+              setHeatIds(prev=>{
+                const filtered=prev.filter(x=>x!=="all");
+                if(filtered.includes(lb.id)){
+                  const next=filtered.filter(x=>x!==lb.id);
+                  return next.length===0?["all"]:next;
+                }
+                return [...filtered,lb.id];
+              });
+            }} style={{padding:"5px 10px",border:"none",borderRadius:20,background:sel?(lb.id==="all"?"#555":lb.color+"dd"):"#f0f0f0",color:sel?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:sel?700:400,display:"flex",alignItems:"center",gap:4}}>
+              <span>{lb.emoji}</span><span>{lb.name}</span>
+            </button>;
+          })}
+        </div>
       </div>}
 
       {period==="day"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
