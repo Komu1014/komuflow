@@ -797,6 +797,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     return "none";
   });
   const hasTime=timeMode!=="none";
+  const [tab,setTab]=useState(ev?._openTab||"info");
   const [running,setRunning]=useState(false);
   const [elapsed,setElapsed]=useState(form.timerSecs||0);
   const [labelLocked,setLabelLocked]=useState(!!ev); // manual selection locks auto-detect
