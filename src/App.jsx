@@ -1311,8 +1311,8 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
       <div style={{position:"absolute",top:16,right:20,display:"flex",gap:4}}>
-        <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
-        <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
+        <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+        <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
       </div>
     </div>
     <div style={{margin:"0 16px 14px",background:"#f8f8f8",borderRadius:14,padding:"10px 14px"}}>
@@ -2049,24 +2049,34 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
         {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
-      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
-        <span>选择标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
+      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:calFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600}}>
+        {calFilterIds.length===0?"全部标签":calFilterIds.length===1?(flat.find(l=>l.id===calFilterIds[0])?.name||"标签"):`${calFilterIds.length}个标签`} ▾
       </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
       <button onClick={()=>step(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>›</button>
     </div>
     {/* Label filter chips — collapsible */}
-    {calFilterOpen&&<div style={{paddingLeft:14,paddingRight:14,paddingBottom:6,flexShrink:0,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-      <button onClick={()=>setCalFilterIds([])} style={{padding:"3px 10px",borderRadius:20,border:"none",background:calFilterIds.length===0?"#333":"#f0f0f0",color:calFilterIds.length===0?"white":"#555",fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"center"}}>全部</button>
-      {flat.map(lb=>{
-        const active=calFilterIds.includes(lb.id);
-        const isChild=!!lb._parent;
-        return <button key={lb.id} onClick={()=>setCalFilterIds(p=>active?p.filter(x=>x!==lb.id):[...p,lb.id])}
-          style={{padding:"3px 10px",borderRadius:20,border:active?`1.5px solid ${lb.color}`:"1.5px solid transparent",background:active?lb.color+"22":"#f0f0f0",color:active?lb.color:"#555",fontSize:isChild?10:11,fontWeight:active?700:400,cursor:"pointer",textAlign:"center",display:"flex",alignItems:"center",gap:3,opacity:isChild?0.85:1}}>
-          {isChild&&<span style={{fontSize:9,color:active?lb.color:"#aaa"}}>#</span>}
-          <span>{lb.emoji}</span><span>{lb.name}</span>
-        </button>;
+    {calFilterOpen&&<div style={{margin:"0 14px 6px",background:"#f8f8f8",borderRadius:12,border:"1px solid #f0f0f0",padding:"10px 12px",flexShrink:0}}>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
+        <button onClick={()=>setCalFilterIds([])} style={{padding:"5px 10px",border:"none",borderRadius:20,background:calFilterIds.length===0?"#555":"#f0f0f0",color:calFilterIds.length===0?"white":"#555",fontSize:11,fontWeight:calFilterIds.length===0?700:400,cursor:"pointer"}}>全部</button>
+      </div>
+      {labels.map(lb=>{
+        const activeP=calFilterIds.includes(lb.id);
+        const children=lb.children||[];
+        return <div key={lb.id} style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4,alignItems:"center"}}>
+          <button onClick={()=>setCalFilterIds(p=>activeP?p.filter(x=>x!==lb.id):[...p,lb.id])}
+            style={{padding:"5px 10px",border:"none",borderRadius:20,background:activeP?lb.color+"dd":"#f0f0f0",color:activeP?"white":"#555",fontSize:11,fontWeight:activeP?700:400,cursor:"pointer"}}>
+            {lb.emoji} {lb.name}
+          </button>
+          {children.map(ch=>{
+            const activeC=calFilterIds.includes(ch.id);
+            return <button key={ch.id} onClick={()=>setCalFilterIds(p=>activeC?p.filter(x=>x!==ch.id):[...p,ch.id])}
+              style={{padding:"5px 10px",border:"none",borderRadius:20,background:activeC?ch.color+"dd":"#f0f0f0",color:activeC?"white":"#555",fontSize:11,fontWeight:activeC?700:400,cursor:"pointer"}}>
+              <span style={{fontSize:9,opacity:0.7}}>#</span>{ch.emoji} {ch.name}
+            </button>;
+          })}
+        </div>;
       })}
     </div>}
     {isTimeline
@@ -2185,6 +2195,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
 
   const heatData=useMemo(()=>{
     const isAll=heatIds.includes("all");
+    const expandedHIds=isAll?null:(()=>{const s=new Set(heatIds);labels.forEach(lb=>{if(heatIds.includes(lb.id))(lb.children||[]).forEach(ch=>s.add(ch.id));});return s;})();
     const arr=[];
     let startD;
     if(period==="day"){startD=addDays(new Date(),-offset);}
@@ -2206,20 +2217,20 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       let domLabel=null,domMins=0;
       Object.entries(byLabel).forEach(([lid,m])=>{if(m>domMins){domMins=m;domLabel=lid;}});
       const filteredMins=(isAll?totalMins:(()=>{
-        const fEvs=dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
+        const fEvs=dayEvs.filter(e=>expandedHIds.has(e.labelId)||(e.autoTags||[]).some(t=>expandedHIds.has(t)));
         return fEvs.reduce((s,e)=>s+getHeatDur(e),0);
       })());
       let filtDomLabel=domLabel;
       if(!isAll){
         const filtByLabel={};
-        dayEvs.filter(e=>heatIds.includes(e.labelId)).forEach(e=>{filtByLabel[e.labelId]=(filtByLabel[e.labelId]||0)+getHeatDur(e);});
+        dayEvs.filter(e=>expandedHIds.has(e.labelId)).forEach(e=>{filtByLabel[e.labelId]=(filtByLabel[e.labelId]||0)+getHeatDur(e);});
         let fd=null,fm=0;Object.entries(filtByLabel).forEach(([lid,m])=>{if(m>fm){fm=m;fd=lid;}});
         filtDomLabel=fd||domLabel;
       }
       arr.push({d:ds,mins:filteredMins,domLabel:filtDomLabel,domMins,byLabel});
     }
     return arr;
-  },[events,heatIds,offset,period]);
+  },[events,heatIds,offset,period,labels]);
 
   // Heat color: light = short duration, dark = long duration.
   // Uses rgba alpha [0.15 … 1.0] mapped to duration caps per granularity.
@@ -2264,7 +2275,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   // Heatmap grid config per period
   const heatGrid=useMemo(()=>{
     const isAll=heatIds.includes("all");
-    const evMatchesFilter=e=>isAll||heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t));
+    const expandedHeatIds=isAll?null:(()=>{const s=new Set(heatIds);labels.forEach(lb=>{if(heatIds.includes(lb.id))(lb.children||[]).forEach(ch=>s.add(ch.id));});return s;})();
+    const evMatchesFilter=e=>isAll||expandedHeatIds.has(e.labelId)||(e.autoTags||[]).some(t=>expandedHeatIds.has(t));
     if(period==="day"){
       // 10-minute intervals: 144 cells
       const dayD=heatData[0]?.d||fmtDate(new Date());
@@ -2420,26 +2432,34 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
         <button onClick={()=>setHeatFilterOpen(p=>!p)}
-          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 9px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
-          <span>选择标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
+          style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:heatFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600}}>
+          {heatIsAll?"全部标签":heatIds.length===1?(flat.find(l=>l.id===heatIds[0])?.name||"标签"):`${heatIds.length}个标签`} ▾
         </button>
       </div>
-      {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
-        {[{id:"all",emoji:"🌐",name:"全部"},...flat].map(lb=>{
-          const sel=heatIds.includes(lb.id);
-          return <button key={lb.id} onClick={()=>{
-            if(lb.id==="all"){setHeatIds(["all"]);return;}
-            setHeatIds(prev=>{
-              const filtered=prev.filter(x=>x!=="all");
-              if(filtered.includes(lb.id)){
-                const next=filtered.filter(x=>x!==lb.id);
-                return next.length===0?["all"]:next;
-              }
-              return [...filtered,lb.id];
-            });
-          }} style={{padding:"5px 10px",border:`1.5px solid ${sel?(lb.color||"#333"):"#e5e7eb"}`,borderRadius:20,background:sel?(lb.color||"#333"):"white",color:sel?"white":"#555",cursor:"pointer",fontSize:12,fontWeight:sel?700:400,display:"flex",alignItems:"center",gap:4}}>
-            <span>{lb.emoji}</span><span>{lb.name}</span>
-          </button>;
+      {heatFilterOpen&&<div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",marginBottom:10,border:"1px solid #f0f0f0"}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
+          <button onClick={()=>setHeatIds(["all"])} style={{padding:"5px 10px",border:"none",borderRadius:20,background:heatIsAll?"#555":"#f0f0f0",color:heatIsAll?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:heatIsAll?700:400}}>全部</button>
+        </div>
+        {labels.map(lb=>{
+          const selP=heatIds.includes(lb.id);
+          const children=lb.children||[];
+          return <div key={lb.id} style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4,alignItems:"center"}}>
+            <button onClick={()=>{
+              if(selP){const next=heatIds.filter(x=>x!==lb.id);setHeatIds(next.length===0?["all"]:next);}
+              else setHeatIds(prev=>[...prev.filter(x=>x!=="all"),lb.id]);
+            }} style={{padding:"5px 10px",border:"none",borderRadius:20,background:selP?lb.color+"dd":"#f0f0f0",color:selP?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:selP?700:400}}>
+              {lb.emoji} {lb.name}
+            </button>
+            {children.map(ch=>{
+              const selC=heatIds.includes(ch.id);
+              return <button key={ch.id} onClick={()=>{
+                if(selC){const next=heatIds.filter(x=>x!==ch.id);setHeatIds(next.length===0?["all"]:next);}
+                else setHeatIds(prev=>[...prev.filter(x=>x!=="all"),ch.id]);
+              }} style={{padding:"5px 10px",border:"none",borderRadius:20,background:selC?ch.color+"dd":"#f0f0f0",color:selC?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:selC?700:400}}>
+                <span style={{fontSize:9,opacity:0.7}}>#</span>{ch.emoji} {ch.name}
+              </button>;
+            })}
+          </div>;
         })}
       </div>}
 
@@ -2622,8 +2642,9 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       const barColor=chartSingleLb?chartSingleLb.color:"#8e8e93";
       const lineColor=chartSingleLb?chartSingleLb.color:"#555";
 
-      // Filter events by selected chart labels — always sum selected labels only
-      const filtEvs=(evs)=>chartIsAll?evs:evs.filter(e=>chartLabelIds.includes(e.labelId)||(e.autoTags||[]).some(t=>chartLabelIds.includes(t)));
+      // Filter events by selected chart labels — expand parent to include children
+      const expandedChartIds=chartIsAll?null:(()=>{const s=new Set(chartLabelIds);labels.forEach(lb=>{if(chartLabelIds.includes(lb.id))(lb.children||[]).forEach(ch=>s.add(ch.id));});return s;})();
+      const filtEvs=(evs)=>chartIsAll?evs:evs.filter(e=>expandedChartIds.has(e.labelId)||(e.autoTags||[]).some(t=>expandedChartIds.has(t)));
 
       const barData=chartDays.map(({ds})=>{
         const dayEvs=filtEvs(getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)));
@@ -2688,21 +2709,26 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
         </div>
         {/* Label filter dropdown */}
         {chartFilterOpen&&<div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",marginBottom:10,border:"1px solid #f0f0f0"}}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
             <button onClick={()=>{setChartLabelIds(["all"]);}} style={{padding:"5px 10px",border:"none",borderRadius:20,background:chartIsAll?"#555":"#f0f0f0",color:chartIsAll?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:chartIsAll?700:400}}>全部</button>
-            {flat.map(l=>{
-              const sel=chartLabelIds.includes(l.id);
-              return <button key={l.id} onClick={()=>{
-                setChartLabelIds(p=>{
-                  if(p.includes("all")) return[l.id];
-                  if(p.includes(l.id)) return p.length===1?["all"]:p.filter(x=>x!==l.id);
-                  return[...p,l.id];
-                });
-              }} style={{padding:"5px 10px",border:"none",borderRadius:20,background:sel?l.color+"dd":"#f0f0f0",color:sel?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:sel?700:400}}>
-                {l._parent&&<span style={{fontSize:9,opacity:0.6}}>#</span>}{l.emoji} {l.name}
-              </button>;
-            })}
           </div>
+          {labels.map(lb=>{
+            const selP=chartLabelIds.includes(lb.id);
+            const children=lb.children||[];
+            return <div key={lb.id} style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4,alignItems:"center"}}>
+              <button onClick={()=>{setChartLabelIds(p=>{if(p.includes("all"))return[lb.id];if(p.includes(lb.id))return p.length===1?["all"]:p.filter(x=>x!==lb.id);return[...p,lb.id];});}}
+                style={{padding:"5px 10px",border:"none",borderRadius:20,background:selP?lb.color+"dd":"#f0f0f0",color:selP?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:selP?700:400}}>
+                {lb.emoji} {lb.name}
+              </button>
+              {children.map(ch=>{
+                const selC=chartLabelIds.includes(ch.id);
+                return <button key={ch.id} onClick={()=>{setChartLabelIds(p=>{if(p.includes("all"))return[ch.id];if(p.includes(ch.id))return p.length===1?["all"]:p.filter(x=>x!==ch.id);return[...p,ch.id];});}}
+                  style={{padding:"5px 10px",border:"none",borderRadius:20,background:selC?ch.color+"dd":"#f0f0f0",color:selC?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:selC?700:400}}>
+                  <span style={{fontSize:9,opacity:0.7}}>#</span>{ch.emoji} {ch.name}
+                </button>;
+              })}
+            </div>;
+          })}
         </div>}
         <div style={{overflowX:"auto"}} className="hide-scrollbar">
           <svg width={svgW} height={svgH} style={{display:"block",margin:"0 auto"}}>
