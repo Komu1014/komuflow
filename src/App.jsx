@@ -2367,6 +2367,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       </div>
       <button onClick={()=>setOffset(p=>p+1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",flexShrink:0,textAlign:"center"}}>‹</button>
       <button onClick={()=>setOffset(p=>Math.max(0,p-1))} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:offset===0?"#ccc":"#555",WebkitTextFillColor:offset===0?"#ccc":"#555",flexShrink:0,textAlign:"center"}}>›</button>
+      {offset>0&&<button onClick={()=>setOffset(0)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",WebkitTextFillColor:"#555",flexShrink:0,textAlign:"center"}}>今</button>}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
       {[{l:"总日程",v:rangeEvs.length,u:"个"},{l:"总时长",v:fmtMins(grand),u:""},{l:"已完成",v:doneEvs.length,u:"个"},{l:"时间利用率",v:periodTotalMins>0?Math.round(grand/periodTotalMins*100)+"%":"—",u:""}].map((s,i)=><div key={i} style={{background:"white",borderRadius:14,padding:"12px 14px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)"}}>
