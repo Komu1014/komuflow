@@ -90,7 +90,7 @@ function useNotifPermission() {
 const pad = n => String(n).padStart(2,"0");
 const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
-const isSameDay = (a,b) => fmtDate(new Date(a))===fmtDate(new Date(b));
+const isSameDay = (a,b) => fmtDate(a instanceof Date?a:new Date(a))===fmtDate(b instanceof Date?b:new Date(b));
 const todayStr = () => fmtDate(new Date());
 const parseMins = s => { if(!s) return 0; const [h,m]=s.split(":").map(Number); return h*60+(m||0); };
 const fmtMins = m => { if(!m&&m!==0) return "—"; const h=Math.floor(Math.abs(m)/60),mn=Math.abs(m)%60; return h>0?(mn>0?`${h}h${mn}m`:`${h}h`):(mn+"m"); };
@@ -286,6 +286,13 @@ const isDoneOn=(ev,ds)=>{
 const flattenLabels=ls=>{const r=[];ls.forEach(l=>{r.push(l);(l.children||[]).forEach(c=>r.push({...c,_parent:l.id}));});return r;};
 function useBP(){const [bp,set]=useState(()=>window.innerWidth<768?"phone":window.innerWidth<1100?"tablet":"desktop");useEffect(()=>{const h=()=>set(window.innerWidth<768?"phone":window.innerWidth<1100?"tablet":"desktop");window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return bp;}
 
+const lightenHex=(hex,amount=0.45)=>{
+  if(!hex||hex.length<7) return hex||"#ccc";
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  const lr=Math.round(r+(255-r)*amount),lg=Math.round(g+(255-g)*amount),lb2=Math.round(b+(255-b)*amount);
+  return `#${pad(lr.toString(16))}${pad(lg.toString(16))}${pad(lb2.toString(16))}`;
+};
+
 /* ── shared styles ── */
 const INP={border:"1.5px solid #EBEBEB",borderRadius:10,padding:"8px 11px",fontSize:14,outline:"none",background:"white",color:"#111",WebkitTextFillColor:"#111"};
 const PRESETS=["#7DC97B","#9E9E9E","#F5C842","#E8A23A","#4CAF85","#4A90D9","#E74C3C","#9B59B6","#1ABC9C","#E67E22","#FF6B9D","#34C759"];
@@ -364,7 +371,7 @@ function Modal({title,onClose,children,width=440,hideHeader=false}){
 }
 
 /* ══════ TIME SCROLL PICKER ══════ */
-function TimeScrollPicker({value, onChange, label, compact}){
+function TimeScrollPicker({value, onChange, label, compact, minMins}){
   const [h,m] = value ? value.split(":").map(Number) : [9,0];
   const hourRef = useRef();
   const minRef = useRef();
@@ -377,23 +384,48 @@ function TimeScrollPicker({value, onChange, label, compact}){
     if(minRef.current) minRef.current.scrollTop = Math.floor(m/5) * ITEM_H;
   },[]);
 
+  // minMins: total minutes from midnight that end time must be >= 
+  const isDisabled=(hv,mv)=>{
+    if(minMins==null) return false;
+    const totalMins=hv*60+mv;
+    // Allow overnight (next day), disable only if same-day and before minMins
+    // We allow wrapping past midnight, so only disable if in 0..23:55 range AND before minMins
+    // and minMins itself is < 1440 (not overnight)
+    if(minMins>=1440) return false;
+    return totalMins<minMins && totalMins<minMins;
+  };
+
   const onHourScroll = e => {
     const idx = Math.round(e.target.scrollTop / ITEM_H);
-    const newH = Math.min(23, Math.max(0, idx));
+    let newH = Math.min(23, Math.max(0, idx));
+    // Snap to minMins if needed
+    if(minMins!=null){
+      const curM=m;
+      if(newH*60+curM < minMins && newH*60+curM >= 0){
+        newH=Math.floor(minMins/60)%24;
+        if(hourRef.current) hourRef.current.scrollTop=newH*ITEM_H;
+      }
+    }
     onChange(`${pad(newH)}:${pad(m)}`);
   };
   const onMinScroll = e => {
     const idx = Math.round(e.target.scrollTop / ITEM_H);
-    const newM = (Math.min(11, Math.max(0, idx))) * 5;
+    let newM = (Math.min(11, Math.max(0, idx))) * 5;
+    if(minMins!=null && h*60+newM < minMins && h*60+newM>=0){
+      newM=minMins%60;
+      newM=Math.ceil(newM/5)*5%60;
+      if(minRef.current) minRef.current.scrollTop=Math.floor(newM/5)*ITEM_H;
+    }
     onChange(`${pad(h)}:${pad(newM)}`);
   };
 
   const scrollStyle = {height: ITEM_H*3, overflowY:"scroll", scrollSnapType:"y mandatory", scrollbarWidth:"none", msOverflowStyle:"none"};
-  const itemStyle = (selected) => ({
+  const itemStyle = (selected, disabled) => ({
     height: ITEM_H, display:"flex", alignItems:"center", justifyContent:"center",
     scrollSnapAlign:"center", fontSize: compact ? (selected?14:11) : (selected ? 18 : 14),
-    fontWeight: selected ? 700 : 400, color: selected ? "#111" : "#c0c0c0",
-    cursor:"pointer", transition:"all 0.1s", flexShrink:0,
+    fontWeight: selected ? 700 : 400,
+    color: disabled ? "#e0e0e0" : selected ? "#111" : "#c0c0c0",
+    cursor: disabled ? "not-allowed" : "pointer", transition:"all 0.1s", flexShrink:0,
   });
   const itemClass = (selected) => selected ? "time-picker-selected" : "time-picker-unselected";
 
@@ -402,13 +434,13 @@ function TimeScrollPicker({value, onChange, label, compact}){
       <div style={{position:"absolute",left:0,right:0,top:"50%",transform:"translateY(-50%)",height:ITEM_H,background:"rgba(0,0,0,0.07)",borderRadius:6,pointerEvents:"none",zIndex:1}}/>
       <div ref={hourRef} onScroll={onHourScroll} style={{...scrollStyle,width:38}}>
         <div style={{height:ITEM_H}}/>
-        {hours.map(hv=><div key={hv} style={itemStyle(hv===h)} onClick={()=>{if(hourRef.current)hourRef.current.scrollTop=hv*ITEM_H;onChange(`${pad(hv)}:${pad(m)}`);}}>{pad(hv)}</div>)}
+        {hours.map(hv=>{const dis=isDisabled(hv,m);return <div key={hv} style={itemStyle(hv===h,dis)} onClick={()=>{if(dis)return;if(hourRef.current)hourRef.current.scrollTop=hv*ITEM_H;onChange(`${pad(hv)}:${pad(m)}`);}}>{pad(hv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
       <div style={{fontSize:14,fontWeight:700,color:"#555",padding:"0 2px",zIndex:2}}>:</div>
       <div ref={minRef} onScroll={onMinScroll} style={{...scrollStyle,width:38}}>
         <div style={{height:ITEM_H}}/>
-        {mins.map(mv=><div key={mv} style={itemStyle(mv===m||mv===Math.floor(m/5)*5)} onClick={()=>{if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>)}
+        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} style={itemStyle(mv===m||mv===Math.floor(m/5)*5,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
     </div>;
@@ -421,13 +453,13 @@ function TimeScrollPicker({value, onChange, label, compact}){
       <div style={{position:"absolute",left:0,right:0,top:"50%",transform:"translateY(-50%)",height:ITEM_H,background:"rgba(0,0,0,0.06)",borderRadius:8,pointerEvents:"none",zIndex:1}}/>
       <div ref={hourRef} onScroll={onHourScroll} style={{...scrollStyle,width:56}}>
         <div style={{height:ITEM_H}}/>
-        {hours.map(hv=><div key={hv} className={itemClass(hv===h)} style={itemStyle(hv===h)} onClick={()=>{if(hourRef.current)hourRef.current.scrollTop=hv*ITEM_H;onChange(`${pad(hv)}:${pad(m)}`);}}>{pad(hv)}</div>)}
+        {hours.map(hv=>{const dis=isDisabled(hv,m);return <div key={hv} className={itemClass(hv===h)} style={itemStyle(hv===h,dis)} onClick={()=>{if(dis)return;if(hourRef.current)hourRef.current.scrollTop=hv*ITEM_H;onChange(`${pad(hv)}:${pad(m)}`);}}>{pad(hv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
       <div style={{fontSize:20,fontWeight:700,color:"#555",padding:"0 4px",zIndex:2}}>:</div>
       <div ref={minRef} onScroll={onMinScroll} style={{...scrollStyle,width:56}}>
         <div style={{height:ITEM_H}}/>
-        {mins.map(mv=><div key={mv} className={itemClass(mv===m||mv===Math.floor(m/5)*5)} style={itemStyle(mv===m||mv===Math.floor(m/5)*5)} onClick={()=>{if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>)}
+        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} className={itemClass(mv===m||mv===Math.floor(m/5)*5)} style={itemStyle(mv===m||mv===Math.floor(m/5)*5,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
     </div>
@@ -583,9 +615,6 @@ function LabelManager({labels,onSave,initialLabelId}){
     }
   },[dragOver,list]);
   const displayList=previewList||list;
-
-    const flush=()=>{};  // no-op kept for compatibility
-    const getLatest=()=>({});
 
   // If a label is selected, show detail view with inline edit form like children
   if(selLabel){
@@ -757,18 +786,97 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
   // For repeat tasks opened from a non-original date, show that date in the form
   const displayDate=ev?.repeat&&ev.repeat!=="none"&&instanceDate?instanceDate:(ev?.date||initialDate||todayStr());
   const [form,setForm]=useState(()=>ev?{...ev,date:displayDate}:{id:uuid(),title:"",labelId:labels[0]?.id||"",autoTags:[],date:initialDate||todayStr(),startTime:null,endTime:null,allDay:false,repeat:"none",repeatDays:[],notes:"",timerSecs:0,done:false,notif:{onStart:false,onEnd:false}});
-  const [tab,setTab]=useState(ev?._openTab||"info");
+  // timeMode: "none" | "point" | "range"
+  const [timeMode,setTimeMode]=useState(()=>{
+    if(ev?.allDay) return "range";
+    if(ev?.startTime&&ev?.endTime) return "range";
+    if(ev?.startTime&&!ev?.endTime) return "point";
+    return "none";
+  });
+  const hasTime=timeMode!=="none";
   const [running,setRunning]=useState(false);
   const [elapsed,setElapsed]=useState(form.timerSecs||0);
-  const [hasTime,setHasTime]=useState(!!(ev?.startTime));
   const [labelLocked,setLabelLocked]=useState(!!ev); // manual selection locks auto-detect
   const [timerApplied,setTimerApplied]=useState(false);
   const [showRepeatDel,setShowRepeatDel]=useState(false);
   const [showRepeatSave,setShowRepeatSave]=useState(false);
   const [pendingSave,setPendingSave]=useState(null);
   const [openPicker,setOpenPicker]=useState(null); // "start" | "end" | null
+  // Duration tracking: null = custom (end was set independently)
+  const DURATION_PRESETS=[30,60,90,120];
+  const initDur=()=>{
+    if(!ev?.startTime||!ev?.endTime) return 60;
+    const d=parseMins(ev.endTime)-parseMins(ev.startTime);
+    const adj=d<=0?d+1440:d;
+    return DURATION_PRESETS.includes(adj)?adj:null; // null = custom
+  };
+  const [durationMins,setDurationMins]=useState(initDur);
+
+  // When start time changes: keep duration, move end time forward
+  const onStartChange=v=>{
+    if(timeMode==="range"&&durationMins!=null){
+      const startM=parseMins(v);
+      const endM=(startM+durationMins)%1440;
+      setForm(p=>({...p,startTime:v,endTime:`${pad(Math.floor(endM/60))}:${pad(endM%60)}`}));
+    } else {
+      setForm(p=>({...p,startTime:v}));
+    }
+  };
+
+  // When end time changes: update duration, keep start fixed
+  const onEndChange=v=>{
+    const startM=parseMins(form.startTime||"09:00");
+    let endM=parseMins(v);
+    // Enforce end >= start + 5min (wrap allowed for overnight)
+    const minEnd=(startM+5)%1440;
+    // Don't allow going backwards past start within same day context
+    const diff=endM-startM;
+    const adjDiff=diff<=0?diff+1440:diff;
+    if(adjDiff<5){
+      endM=(startM+5)%1440;
+      v=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+    }
+    const actualDiff=endM-startM;
+    const actualDur=actualDiff<=0?actualDiff+1440:actualDiff;
+    setDurationMins(DURATION_PRESETS.includes(actualDur)?actualDur:null);
+    setForm(p=>({...p,endTime:v}));
+  };
+
+  // When a duration preset is selected: keep start, compute new end
+  const onDurationSelect=mins=>{
+    setDurationMins(mins);
+    const startM=parseMins(form.startTime||"09:00");
+    const endM=(startM+mins)%1440;
+    setForm(p=>({...p,endTime:`${pad(Math.floor(endM/60))}:${pad(endM%60)}`}));
+  };
   const timer=useRef();
-  useEffect(()=>{if(running)timer.current=setInterval(()=>setElapsed(p=>p+1),1000);else clearInterval(timer.current);return()=>clearInterval(timer.current);},[running]);
+  const startTsRef=useRef(null); // timestamp when timer last started
+  const baseElapsedRef=useRef(form.timerSecs||0); // elapsed seconds before current run
+  // Timestamp-based timer: immune to backgrounding/screen-lock
+  useEffect(()=>{
+    if(running){
+      startTsRef.current=Date.now();
+      const tick=()=>{
+        const nowSecs=Math.floor((Date.now()-startTsRef.current)/1000);
+        setElapsed(baseElapsedRef.current+nowSecs);
+        timer.current=requestAnimationFrame(tick);
+      };
+      timer.current=requestAnimationFrame(tick);
+      const onVisible=()=>{
+        if(document.visibilityState==="visible"&&startTsRef.current!==null){
+          setElapsed(baseElapsedRef.current+Math.floor((Date.now()-startTsRef.current)/1000));
+        }
+      };
+      document.addEventListener("visibilitychange",onVisible);
+      return()=>{
+        cancelAnimationFrame(timer.current);
+        document.removeEventListener("visibilitychange",onVisible);
+        // Capture final elapsed into base so next run accumulates correctly
+        baseElapsedRef.current=baseElapsedRef.current+Math.floor((Date.now()-startTsRef.current)/1000);
+        startTsRef.current=null;
+      };
+    }
+  },[running]);
 
   // Auto-tag + auto-label from title (new tasks only, unless user manually picked a label)
   useEffect(()=>{
@@ -802,7 +910,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
       const nowM=now.getHours()*60+now.getMinutes();
       startM=((nowM-elapsedMins)+1440)%1440;
       const newStart=`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
-      setHasTime(true);
+      setTimeMode("range");
       setForm(p=>({...p,startTime:newStart}));
     }
     const endM=(startM+elapsedMins)%1440;
@@ -811,25 +919,20 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     setTimerApplied(true);
   };
 
-  // Handle hasTime toggle
-  const toggleHasTime = () => {
-    const next = !hasTime;
-    setHasTime(next);
-    if(next) {
-      setForm(p=>({...p, startTime:`${pad(dh)}:00`, endTime:`${pad(dh+1)}:00`, allDay:false}));
+  // Handle time mode change
+  const changeTimeMode = (mode) => {
+    setTimeMode(mode);
+    if(mode==="none"){
+      setForm(p=>({...p,startTime:null,endTime:null,allDay:false}));
+    } else if(mode==="point"){
+      const st=form.startTime||`${pad(dh)}:00`;
+      setForm(p=>({...p,startTime:st,endTime:null,allDay:false}));
     } else {
-      setForm(p=>({...p, startTime:null, endTime:null, allDay:false}));
+      const st=form.startTime||`${pad(dh)}:00`;
+      const et=form.endTime||`${pad(dh+1)}:00`;
+      setForm(p=>({...p,startTime:st,endTime:et,allDay:false}));
     }
   };
-
-  // Styled date input
-  const DateInput = ({label:lbl, value, onChange}) => (
-    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-      <div style={{fontSize:11,fontWeight:700,color:"#8e8e93"}}>{lbl}</div>
-      <input type="date" value={value} onChange={e=>onChange(e.target.value)}
-        style={{...INP,fontSize:13,background:"white",border:"1.5px solid #e5e7eb",borderRadius:10}}/>
-    </div>
-  );
 
   const [showLabelPicker,setShowLabelPicker]=useState(false);
 
@@ -856,11 +959,20 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
 
     {tab==="info"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
       <div style={{background:"#fafafa",borderRadius:12,border:"1px solid #f0f0f0",overflow:"hidden"}}>
-        {!form.allDay&&<Row label="安排时间" sep={hasTime||false} rightAlign>
-          <div onClick={toggleHasTime} style={{width:40,height:22,borderRadius:11,background:hasTime?"#555":"#ccc",cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
-            <div style={{position:"absolute",top:2,left:hasTime?20:2,width:18,height:18,borderRadius:"50%",background:"white",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+        {/* Time mode selector */}
+        <div style={{display:"flex",alignItems:"center",padding:"9px 14px",borderBottom:hasTime?"1px solid #f5f5f5":"none"}}>
+          <span style={{fontSize:12,color:"#8e8e93",width:54,flexShrink:0}}>时间</span>
+          <div style={{display:"flex",background:"#f0f0f0",borderRadius:8,padding:2,gap:2,flex:1}}>
+            {[["none","无时间"],["point","时间点"],["range","时间段"]].map(([m,l])=>(
+              <button key={m} onClick={()=>changeTimeMode(m)}
+                style={{flex:1,padding:"5px 0",border:"none",borderRadius:6,background:timeMode===m?"white":"transparent",
+                  fontWeight:timeMode===m?700:400,fontSize:11,cursor:"pointer",color:timeMode===m?"#111":"#8e8e93",
+                  boxShadow:timeMode===m?"0 1px 3px rgba(0,0,0,0.1)":"",textAlign:"center",transition:"all 0.15s"}}>
+                {l}
+              </button>
+            ))}
           </div>
-        </Row>}
+        </div>
         {hasTime&&<Row label="全天" sep rightAlign>
           <div onClick={()=>setForm(p=>({...p,allDay:!p.allDay}))} style={{width:40,height:22,borderRadius:11,background:form.allDay?"#555":"#ccc",cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
             <div style={{position:"absolute",top:2,left:form.allDay?20:2,width:18,height:18,borderRadius:"50%",background:"white",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
@@ -877,20 +989,40 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
             </button>}
           </div>
           {openPicker==="start"&&!form.allDay&&<div style={{padding:"12px 14px",borderBottom:"1px solid #f5f5f5",background:"#fafafa",display:"flex",justifyContent:"center"}}>
-            <TimeScrollPicker value={form.startTime||"09:00"} onChange={v=>setForm(p=>({...p,startTime:v}))}/>
+            <TimeScrollPicker value={form.startTime||"09:00"} onChange={onStartChange}/>
           </div>}
-          <div style={{display:"flex",alignItems:"center",padding:"9px 14px"}}>
-            <span style={{fontSize:12,color:"#8e8e93",width:54,flexShrink:0}}>结束日期</span>
-            <input type="date" value={form.endDate||form.date} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))}
-              className="form-date-input" style={{...INP,border:"none",padding:0,background:"transparent",fontSize:13}}/>
-            {!form.allDay&&<button onClick={()=>setOpenPicker(p=>p==="end"?null:"end")}
-              style={{marginLeft:"auto",border:"none",background:openPicker==="end"?"#e8e8e8":"#f2f2f7",borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:"#333",cursor:"pointer",flexShrink:0,minWidth:52,textAlign:"center"}}>
-              {form.endTime||"10:00"}
-            </button>}
-          </div>
-          {openPicker==="end"&&!form.allDay&&<div style={{padding:"12px 14px",background:"#fafafa",display:"flex",justifyContent:"center"}}>
-            <TimeScrollPicker value={form.endTime||"10:00"} onChange={v=>setForm(p=>({...p,endTime:v}))}/>
-          </div>}
+          {timeMode==="range"&&<>
+            {/* Duration presets */}
+            {!form.allDay&&<div style={{padding:"8px 14px",borderBottom:"1px solid #f5f5f5",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>时长</span>
+              {DURATION_PRESETS.map(d=>{
+                const label=d<60?`${d}m`:d%60===0?`${d/60}h`:`${Math.floor(d/60)}h${d%60}m`;
+                const sel=durationMins===d;
+                return <button key={d} onClick={()=>onDurationSelect(d)}
+                  style={{padding:"3px 10px",border:"1.5px solid",borderColor:sel?"#333":"#e5e7eb",borderRadius:20,background:sel?"#333":"white",color:sel?"white":"#555",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
+                  {label}
+                </button>;
+              })}
+              <button onClick={()=>{setDurationMins(null);setOpenPicker("end");}}
+                style={{padding:"3px 10px",border:"1.5px solid",borderColor:durationMins===null?"#333":"#e5e7eb",borderRadius:20,background:durationMins===null?"#333":"white",color:durationMins===null?"white":"#555",fontSize:11,fontWeight:durationMins===null?700:400,cursor:"pointer"}}>
+                自定义
+              </button>
+            </div>}
+            <div style={{display:"flex",alignItems:"center",padding:"9px 14px"}}>
+              <span style={{fontSize:12,color:"#8e8e93",width:54,flexShrink:0}}>结束日期</span>
+              <input type="date" value={form.endDate||form.date} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))}
+                className="form-date-input" style={{...INP,border:"none",padding:0,background:"transparent",fontSize:13}}/>
+              {!form.allDay&&<button onClick={()=>setOpenPicker(p=>p==="end"?null:"end")}
+                style={{marginLeft:"auto",border:"none",background:openPicker==="end"?"#e8e8e8":"#f2f2f7",borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:"#333",cursor:"pointer",flexShrink:0,minWidth:52,textAlign:"center"}}>
+                {form.endTime||"10:00"}
+              </button>}
+            </div>
+            {openPicker==="end"&&!form.allDay&&<div style={{padding:"12px 14px",background:"#fafafa",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+              <TimeScrollPicker value={form.endTime||"10:00"} onChange={onEndChange}
+                minMins={parseMins(form.startTime||"09:00")+5}/>
+            </div>}
+          </>}
+          {timeMode==="point"&&<div style={{padding:"6px 14px 10px",fontSize:11,color:"#aaa"}}>时间点任务：仅记录开始时间，无结束时间</div>}
         </>}
       </div>
 
@@ -1251,13 +1383,6 @@ function TodayPage({events,labels,onOpen,onAdd,onToggle,onDelete}){
     {key:"evening",icon:"🌙",label:"晚上",test:e=>e.startTime&&!e.allDay&&parseMins(e.startTime)>=1080,hour:20},
     {key:"allday",icon:"📋",label:"尚未安排时间",test:e=>e.allDay||!e.startTime,hour:null},
   ];
-  const lightenHex=(hex,amount=0.45)=>{
-    if(!hex||hex.length<7) return hex||"#ccc";
-    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-    const lr=Math.round(r+(255-r)*amount),lg=Math.round(g+(255-g)*amount),lb2=Math.round(b+(255-b)*amount);
-    return `#${pad(lr.toString(16))}${pad(lg.toString(16))}${pad(lb2.toString(16))}`;
-  };
-
   const outerRef=useRef();
   const stripRef=useRef();
   const wRef=useRef(0);
@@ -1493,13 +1618,6 @@ const HH=58;
 function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
   const getLb=id=>flat.find(l=>l.id===id)||{color:"#ccc",emoji:"📌"};
-
-  const lightenHex=(hex,amount=0.45)=>{
-    if(!hex||hex.length<7) return hex||"#ccc";
-    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-    const lr=Math.round(r+(255-r)*amount),lg2=Math.round(g+(255-g)*amount),lb2=Math.round(b+(255-b)*amount);
-    return `#${pad(lr.toString(16))}${pad(lg2.toString(16))}${pad(lb2.toString(16))}`;
-  };
 
   const getDaySegments=useCallback((ds)=>{
     return getForDate(events,ds,{includeUnscheduled:false}).filter(e=>!e.allDay&&e.startTime).map(ev=>{
@@ -1993,7 +2111,10 @@ function StatsPage({events,labels,onOpen}){
   const [offset,setOffset]=useState(0);
   const [heatIds,setHeatIds]=useState(["all"]);
   const [heatFilterOpen,setHeatFilterOpen]=useState(false);
+  const [chartLabelIds,setChartLabelIds]=useState(["all"]);
+  const [chartFilterOpen,setChartFilterOpen]=useState(false);
   const [expId,setExpId]=useState(null);
+  const [expChildId,setExpChildId]=useState(null);
   const [detEv,setDetEv]=useState(null);
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
   const getLb=id=>flat.find(l=>l.id===id)||{color:"#ccc",emoji:"📌",name:"未分类"};
@@ -2097,8 +2218,9 @@ function StatsPage({events,labels,onOpen}){
     return arr;
   },[events,heatIds,offset,period]);
 
-  // Absolute-scale heat color: intensity based on fixed time caps per granularity.
-  // Caps: day_heat=10min, week=60min, month_mobile=120min, month_desk=60min, year=720min(12h)
+  // Heat color: light = short duration, dark = long duration.
+  // Uses rgba alpha [0.15 … 1.0] mapped to duration caps per granularity.
+  // Caps: day_heat=10min, week=60min, month=120min(mobile)/60min(desk), year=720min(12h)
   const isMobileView=window.innerWidth<768;
   const heatCellColor=(domLabelId, mins, granularity)=>{
     if(!mins) return "#f0f0f0";
@@ -2107,12 +2229,15 @@ function StatsPage({events,labels,onOpen}){
     else if(granularity==="week") cap=60;
     else if(granularity==="month") cap=isMobileView?120:60;
     else if(granularity==="year") cap=720;
-    else cap=60; // fallback
-    const a=Math.min(1, 0.18+0.82*(mins/cap));
-    const domLb=domLabelId?flat.find(l=>l.id===domLabelId):null;
-    const baseColor=domLb?domLb.color:(hLb?hLb.color:"#8e8e93");
+    else cap=60;
+    const ratio=Math.min(1, mins/cap);
+    const a=0.15+0.85*ratio;
+    // Multi-label or "all": use dominant label color; single label: use that label's color
+    const colorLb=domLabelId?flat.find(l=>l.id===domLabelId):null;
+    const fallbackColor=(!heatIsAll&&hLb)?hLb.color:"#8e8e93";
+    const baseColor=colorLb?colorLb.color:fallbackColor;
     const r=parseInt(baseColor.slice(1,3),16),g=parseInt(baseColor.slice(3,5),16),b=parseInt(baseColor.slice(5,7),16);
-    return `rgba(${r},${g},${b},${a})`;
+    return `rgba(${r},${g},${b},${a.toFixed(2)})`;
   };
 
   // legend color for gradient
@@ -2244,24 +2369,46 @@ function StatsPage({events,labels,onOpen}){
             <span style={{fontSize:12,color:"#8e8e93",marginLeft:6}}>{fmtMins(lb.total)}</span>
             <span style={{fontSize:11,color:"#ccc",marginLeft:3}}>{isExp?"▲":"▼"}</span>
           </div>
-          {(lb.children||[]).map(ch=><div key={ch.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0 5px 20px",borderBottom:"1px solid #f8f8f8"}}>
+          {(lb.children||[]).map(ch=><div key={ch.id}>
+            <div onClick={()=>{setExpChildId(p=>p===ch.id?null:ch.id);setExpId(null);}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0 5px 20px",borderBottom:"1px solid #f8f8f8",cursor:"pointer"}}>
             <span style={{fontSize:11,color:"#aaa",fontWeight:700}}>#</span>
             <span style={{fontSize:12,flex:1,color:"#666"}}>{ch.emoji} {ch.name}</span>
             <ChgBadge cur={ch.mins} prev={ch.prevMins||0}/>
             <span style={{fontSize:11,color:"#8e8e93",marginLeft:6}}>{fmtMins(ch.mins)}</span>
-          </div>)}
-          {isExp&&<div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>关联任务 {lb.evs.length}个</div>
-            {lb.evs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
+            <span style={{fontSize:11,color:"#ccc",marginLeft:3}}>{expChildId===ch.id?"▲":"▼"}</span>
+          </div>
+          {expChildId===ch.id&&<div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6,marginLeft:20}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>子标签任务 {ch.evs.length}个</div>
+            {ch.evs.length===0&&<div style={{fontSize:12,color:"#c0c0c0",padding:"4px 0"}}>暂无任务</div>}
+            {ch.evs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:ch.color||lb.color,flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
                 <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
               </div>
               <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
             </div>)}
-            {lb.evs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {lb.evs.length-15} 更多</div>}
+            {ch.evs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {ch.evs.length-15} 更多</div>}
           </div>}
+          </div>)}
+          {isExp&&(()=>{
+            // Only show tasks directly under this parent label, NOT classified under any child label
+            const childIds=new Set((lb.children||[]).map(c=>c.id));
+            const parentOnlyEvs=lb.evs.filter(ev=>!childIds.has(ev.labelId));
+            return <div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>直属任务 {parentOnlyEvs.length}个</div>
+              {parentOnlyEvs.length===0&&<div style={{fontSize:12,color:"#c0c0c0",padding:"4px 0"}}>所有任务已分类到子标签中</div>}
+              {parentOnlyEvs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
+                  <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
+                </div>
+                <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
+              </div>)}
+              {parentOnlyEvs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {parentOnlyEvs.length-15} 更多</div>}
+            </div>;
+          })()}
         </div>;
       })}
     </div>}
@@ -2446,14 +2593,14 @@ function StatsPage({events,labels,onOpen}){
 
       <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"center"}}>
         <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"0min":period==="week"?"0min":"0h"}</span>
-        {[0.18,0.36,0.55,0.73,1].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
+        {[0.15,0.35,0.55,0.75,1.0].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
         <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"10min":period==="week"?"1h":period==="month"?"2h+":"12h+"}</span>
+        {(heatIsAll||heatIds.length>1)&&<span style={{fontSize:10,color:"#aaa",marginLeft:4}}>· 颜色=最长标签</span>}
       </div>
     </div>
 
-    {/* ── Bar + Line combo chart ── */}
+    {/* ── Bar + Line combo chart (overlapping, not stacked) ── */}
     {(()=>{
-      // Build daily data for the selected period
       const chartDays=[];
       let cStart;
       if(period==="day"){cStart=addDays(new Date(),-offset);}
@@ -2463,19 +2610,24 @@ function StatsPage({events,labels,onOpen}){
       const cDays=period==="year"?365:period==="month"?new Date(cStart.getFullYear(),cStart.getMonth()+1,0).getDate():period==="week"?7:1;
       for(let i=0;i<cDays;i++){const d=addDays(cStart,i);const ds=fmtDate(d);chartDays.push({ds,d});}
 
-      // Group by label for stacking, and compute total per day
+      const chartIsAll=chartLabelIds.includes("all");
+      const chartSingleLb=(!chartIsAll&&chartLabelIds.length===1)?flat.find(l=>l.id===chartLabelIds[0]):null;
+      const barColor=chartSingleLb?chartSingleLb.color:"#8e8e93";
+      const lineColor=chartSingleLb?chartSingleLb.color:"#555";
+
+      // Filter events by selected chart labels — always sum selected labels only
+      const filtEvs=(evs)=>chartIsAll?evs:evs.filter(e=>chartLabelIds.includes(e.labelId)||(e.autoTags||[]).some(t=>chartLabelIds.includes(t)));
+
       const barData=chartDays.map(({ds})=>{
-        const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds));
-        const byLb={};
-        dayEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
+        const dayEvs=filtEvs(getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)));
+        const byLb={};dayEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
         const total=Object.values(byLb).reduce((s,v)=>s+v,0);
         return{ds,byLb,total};
       });
 
-      // For day view: build hourly breakdown
       const hourData=(period==="day")?Array.from({length:24},(_,h)=>{
         const ds=fmtDate(cStart);
-        const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
+        const dayEvs=filtEvs(getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime));
         const hStart=h*60,hEnd=(h+1)*60;
         const hEvs=dayEvs.filter(e=>{
           const eStart=parseMins(e.startTime);
@@ -2488,21 +2640,16 @@ function StatsPage({events,labels,onOpen}){
         return{label:`${pad(h)}`,total,byLb,ds};
       }):null;
 
-      // Aggregate by week for year view, by day otherwise
       const aggData=(()=>{
         if(period==="day") return hourData;
         if(period==="year"){
-          const weeks=[];
-          for(let wi=0;wi<53;wi++){
-            const slice=barData.slice(wi*7,(wi+1)*7);
-            if(slice.length===0) break;
-            const total=slice.reduce((s,d)=>s+d.total,0);
-            const byLb={};
-            slice.forEach(d=>Object.entries(d.byLb).forEach(([lid,m])=>{byLb[lid]=(byLb[lid]||0)+m;}));
-            const wkStart=slice[0].ds;const wk=new Date(wkStart+"T00:00:00");
-            weeks.push({label:`W${wi+1}`,total,byLb,ds:wkStart});
-          }
-          return weeks;
+          const months=Array.from({length:12},(_,mi)=>{
+            const monthDays=barData.filter(d=>{const dObj=new Date(d.ds+"T00:00:00");return dObj.getMonth()===mi;});
+            const total=monthDays.reduce((s,d)=>s+d.total,0);
+            const byLb={};monthDays.forEach(d=>Object.entries(d.byLb).forEach(([lid,m])=>{byLb[lid]=(byLb[lid]||0)+m;}));
+            return{label:MONTHS[mi].slice(0,2),total,byLb,ds:monthDays[0]?.ds||""};
+          });
+          return months;
         }
         return barData.map(({ds,total,byLb})=>{
           const d=new Date(ds+"T00:00:00");
@@ -2512,78 +2659,88 @@ function StatsPage({events,labels,onOpen}){
       })();
 
       if(aggData.length===0) return null;
+      const periodTotal=aggData.reduce((s,d)=>s+d.total,0);
       const maxVal=Math.max(...aggData.map(d=>d.total),1);
-      const H=100; // chart height px
+      const H=110;
       const W_ITEM=Math.max(4,Math.min(28,Math.floor(280/aggData.length)));
       const totalW=aggData.length*W_ITEM;
-      // Top 3 labels for stacked bars
-      const topLbs=lblStats.slice(0,4);
-
-      // Moving average for line (3-point)
-      const ma=aggData.map((d,i)=>{
-        const vals=[aggData[i-1],aggData[i],aggData[i+1]].filter(Boolean).map(x=>x.total);
-        return vals.reduce((s,v)=>s+v,0)/vals.length;
-      });
-
+      const lineVals=aggData.map(d=>d.total);
       const svgW=totalW+32+(period==="day"?20:0);
       const svgH=H+28;
 
       return <div style={{background:"white",borderRadius:20,padding:"16px 16px 12px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)"}}>
-        <div style={{fontSize:14,fontWeight:800,color:"#111",marginBottom:8}}>时长分布</div>
+        {/* Header row: title + total + filter button */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:800,color:"#111"}}>时长分布</div>
+            <div style={{fontSize:12,color:barColor,fontWeight:700,marginTop:1}}>{fmtMins(periodTotal)}</div>
+          </div>
+          <button onClick={()=>setChartFilterOpen(p=>!p)} style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:chartFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600}}>
+            {chartIsAll?"全部标签":chartLabelIds.length===1?(flat.find(l=>l.id===chartLabelIds[0])?.name||"标签"):`${chartLabelIds.length}个标签`} ▾
+          </button>
+        </div>
+        {/* Label filter dropdown */}
+        {chartFilterOpen&&<div style={{background:"#f8f8f8",borderRadius:12,padding:"10px 12px",marginBottom:10,border:"1px solid #f0f0f0"}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            <button onClick={()=>{setChartLabelIds(["all"]);}} style={{padding:"5px 10px",border:"none",borderRadius:20,background:chartIsAll?"#555":"#f0f0f0",color:chartIsAll?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:chartIsAll?700:400}}>全部</button>
+            {flat.map(l=>{
+              const sel=chartLabelIds.includes(l.id);
+              return <button key={l.id} onClick={()=>{
+                setChartLabelIds(p=>{
+                  if(p.includes("all")) return[l.id];
+                  if(p.includes(l.id)) return p.length===1?["all"]:p.filter(x=>x!==l.id);
+                  return[...p,l.id];
+                });
+              }} style={{padding:"5px 10px",border:"none",borderRadius:20,background:sel?l.color+"dd":"#f0f0f0",color:sel?"white":"#555",cursor:"pointer",fontSize:11,fontWeight:sel?700:400}}>
+                {l._parent&&<span style={{fontSize:9,opacity:0.6}}>#</span>}{l.emoji} {l.name}
+              </button>;
+            })}
+          </div>
+        </div>}
         <div style={{overflowX:"auto"}} className="hide-scrollbar">
           <svg width={svgW} height={svgH} style={{display:"block",margin:"0 auto"}}>
-            {/* Y grid lines */}
             {[0.25,0.5,0.75,1].map(f=>{
               const y=H*(1-f)+4;
               return <line key={f} x1={24} x2={svgW} y1={y} y2={y} stroke="#f0f0f0" strokeWidth={1}/>;
             })}
-            {/* Bars */}
+            {/* Overlapping bars — each bar is the total (not stacked), colored by filter state */}
             {aggData.map((d,i)=>{
               const x=24+i*W_ITEM;
-              let stackY=H+4;
-              return <g key={i}>
-                {topLbs.length>0?topLbs.map(lb=>{
-                  const m=d.byLb[lb.id]||0;
-                  if(!m) return null;
-                  const bh=Math.max(1,(m/maxVal)*H);
-                  stackY-=bh;
-                  return <rect key={lb.id} x={x+1} y={stackY} width={Math.max(2,W_ITEM-2)} height={bh} fill={lb.color} opacity={0.75} rx={2}/>;
-                }):<rect x={x+1} y={H+4-(d.total/maxVal)*H} width={Math.max(2,W_ITEM-2)} height={(d.total/maxVal)*H} fill="#8e8e93" opacity={0.5} rx={2}/>}
-              </g>;
+              const bh=(d.total/maxVal)*H;
+              if(!bh) return null;
+              return <rect key={i} x={x+1} y={H+4-bh} width={Math.max(2,W_ITEM-2)} height={bh}
+                fill={barColor} opacity={0.72} rx={2}/>;
             })}
-            {/* Line (moving average) */}
+            {/* Line overlay — actual totals */}
             <polyline
-              points={ma.map((v,i)=>`${24+i*W_ITEM+W_ITEM/2},${H+4-(v/maxVal)*H}`).join(" ")}
-              fill="none" stroke="#333" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" opacity={0.7}/>
-            {/* Dots */}
-            {ma.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2} fill="#333" opacity={0.7}/>)}
-            {/* X labels — show every Nth */}
+              points={lineVals.map((v,i)=>`${24+i*W_ITEM+W_ITEM/2},${H+4-(v/maxVal)*H}`).join(" ")}
+              fill="none" stroke={lineColor} strokeWidth={2}
+              strokeLinejoin="round" strokeLinecap="round" opacity={0.9}/>
+            {lineVals.map((v,i)=><circle key={i} cx={24+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2.2}
+              fill={lineColor} opacity={0.9}/>)}
+            {/* X labels */}
             {aggData.map((d,i)=>{
               let show=false;
               if(period==="day") show=(i%4===0);
               else if(period==="month") show=[1,5,10,15,20,25,30].includes(i+1);
-              else if(period==="year") show=(i+1)===1||((i+1)%10===0);
+              else if(period==="year") show=true;
               else show=(aggData.length<=7?true:aggData.length<=14?i%2===0:i%5===0);
               if(!show) return null;
-              const xLabel=period==="day"?`${d.label}:00`:period==="year"?`W${i+1}`:d.label;
+              const xLabel=period==="day"?`${d.label}:00`:d.label;
               return <text key={i} x={24+i*W_ITEM+W_ITEM/2} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">{xLabel}</text>;
             })}
-            {/* 24:00 end label for day view */}
             {period==="day"&&<text x={24+24*W_ITEM} y={svgH-2} textAnchor="middle" fontSize={8} fill="#aaa">24:00</text>}
-            {/* Y labels */}
             {[0,0.5,1].map(f=><text key={f} x={22} y={H*(1-f)+4+3} textAnchor="end" fontSize={8} fill="#aaa">{fmtMins(Math.round(maxVal*f))}</text>)}
           </svg>
         </div>
-        {topLbs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>
-          {topLbs.map(lb=><div key={lb.id} style={{display:"flex",alignItems:"center",gap:4}}>
-            <div style={{width:8,height:8,borderRadius:2,background:lb.color,opacity:0.75}}/>
-            <span style={{fontSize:10,color:"#666"}}>{lb.emoji} {lb.name}</span>
-          </div>)}
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6,alignItems:"center"}}>
+          <div style={{width:12,height:12,borderRadius:3,background:barColor,opacity:0.72,flexShrink:0}}/>
+          <span style={{fontSize:10,color:"#666"}}>{chartIsAll?"全部标签":chartSingleLb?`${chartSingleLb.emoji} ${chartSingleLb.name}`:`${chartLabelIds.length}个标签`}</span>
           <div style={{display:"flex",alignItems:"center",gap:4}}>
-            <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke="#333" strokeWidth={1.5}/></svg>
-            <span style={{fontSize:10,color:"#666"}}>移动平均</span>
+            <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={lineColor} strokeWidth={2}/><circle cx={8} cy={4} r={2} fill={lineColor}/></svg>
+            <span style={{fontSize:10,color:"#666"}}>实际时长</span>
           </div>
-        </div>}
+        </div>
       </div>;
     })()}
 
