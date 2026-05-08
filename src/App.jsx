@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
@@ -2952,8 +2952,8 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const bp=useBP();const desk=bp==="desktop";
   const [repeatDel,setRepeatDel]=useState(null);
-  const openEv=(ev,instanceDate)=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date});
-  const addEv=(date,hour)=>setModal({t:"add",date,hour});
+  const openEv=(ev,instanceDate)=>startTransition(()=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}));
+  const addEv=(date,hour)=>startTransition(()=>setModal({t:"add",date,hour}));
   const toggleDone=(id,dateStr)=>setEvents(p=>p.map(e=>{
     if(e.id!==id) return e;
     const isRepeat=e.repeat&&e.repeat!=="none";
