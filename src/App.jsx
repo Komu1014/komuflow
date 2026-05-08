@@ -2950,10 +2950,15 @@ export default function App(){
   const [labels,setLabels]=useStore("cfpx_lb",DEF_LABELS);
   const [tab,setTab]=useState("today");
   const [modal,setModal]=useState(null);
+  const [modalReady,setModalReady]=useState(false);
+  useEffect(()=>{
+    if(modal) requestAnimationFrame(()=>setModalReady(true));
+    else setModalReady(false);
+  },[modal]);
   const bp=useBP();const desk=bp==="desktop";
   const [repeatDel,setRepeatDel]=useState(null);
-  const openEv=useCallback((ev,instanceDate)=>requestAnimationFrame(()=>requestAnimationFrame(()=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}))),[]);
-  const addEv=useCallback((date,hour)=>requestAnimationFrame(()=>requestAnimationFrame(()=>setModal({t:"add",date,hour}))),[]);
+  const openEv=useCallback((ev,instanceDate)=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}),[]);
+  const addEv=useCallback((date,hour)=>setModal({t:"add",date,hour}),[]);
   const toggleDone=useCallback((id,dateStr)=>setEvents(p=>p.map(e=>{
     if(e.id!==id) return e;
     const isRepeat=e.repeat&&e.repeat!=="none";
@@ -3116,12 +3121,13 @@ export default function App(){
         </div>
       : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
     }
-    {/* 新建任务弹窗 — Modal title hidden to avoid duplicate close button; EventForm内部不再有close按钮 */}
-    {modal?.t==="add"&&<Modal title="新建事项" onClose={()=>setModal(null)}>
-      <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
-    </Modal>}
-    {modal?.t==="edit"&&<Modal title="编辑事项" onClose={()=>setModal(null)}>
-      <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)}/>
+    {(modal?.t==="add"||modal?.t==="edit")&&<Modal title={modal.t==="add"?"新建事项":"编辑事项"} onClose={()=>setModal(null)}>
+      {modalReady
+        ? modal.t==="add"
+          ? <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
+          : <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)}/>
+        : <div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:28,height:28,borderRadius:"50%",border:"3px solid #f0f0f0",borderTopColor:"#555",animation:"spin 0.7s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>
+      }
     </Modal>}
     {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/></Modal>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
