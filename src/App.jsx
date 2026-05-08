@@ -2779,7 +2779,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       </div>
     </Modal>}
   </div>;
-}
+});
 
 /* ══════ REPEAT DELETE MODAL ══════ */
 function RepeatDeleteModal({ev,instanceDate,onClose,onDelete}){
@@ -2811,7 +2811,7 @@ function RepeatDeleteModal({ev,instanceDate,onClose,onDelete}){
       </div>
     </div>
   </div>;
-});
+}
 
 /* ══════ SIDEBAR ══════ */
 function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
