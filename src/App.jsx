@@ -1301,7 +1301,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
   const toggleSection=key=>setCollapsed(p=>({...p,[key]:!p[key]}));
   return <>
     <div style={{padding:"16px 20px 10px 20px",position:"relative",minHeight:90}}>
-      <div style={{paddingRight:72}}>
+      <div style={{paddingRight:8}}>
         <div style={{fontSize:12,color:dIsToday?"#FF3B30":"#8e8e93",fontWeight:600,marginBottom:4}}>
           {dIsToday?"今天 · ":""}{dDate.toLocaleDateString("zh-CN",{weekday:"long"})}
           {dHol&&<span style={{marginLeft:8,fontSize:11,color:"#FF3B30",background:"#fff0f0",borderRadius:20,padding:"2px 8px"}}>{dHol}</span>}
@@ -1310,10 +1310,7 @@ function DayPanel({dateStr,events,labels,sections,getLb,lightenHex,onAdd,onOpen,
         <div className="day-date-num">{dDate.getDate()}日</div>
         {!dIsToday&&<button onClick={()=>setViewDate(todayStr())} style={{border:"none",background:"#f2f2f7",borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",color:"#555",marginTop:4,textAlign:"center"}}>回到今天</button>}
       </div>
-      <div style={{position:"absolute",top:16,right:20,display:"flex",gap:4}}>
-        <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
-        <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
-      </div>
+
     </div>
     <div style={{margin:"0 16px 14px",background:"#f8f8f8",borderRadius:14,padding:"10px 14px"}}>
       <span style={{fontSize:13,color:"#555",lineHeight:"1.5"}}>共 <b style={{color:"#111"}}>{dEvs.filter(e=>e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay||(e.endDate&&e.endDate!==e.date)).length}</b> 项 · 完成 <b style={{color:"#555"}}>{dEvs.filter(e=>(e.date===dateStr||(e.startTime&&!e.allDay)||e.allDay)&&isDoneOn(e,dateStr)).length}</b></span>
@@ -1611,6 +1608,11 @@ const TodayPage=React.memo(function TodayPage({events,labels,onOpen,onAdd,onTogg
           <DayPanel dateStr={ds} events={events} labels={labels} sections={sections} getLb={getLb} lightenHex={lightenHex} onAdd={onAdd} onOpen={onOpen} onToggle={onToggle} onDelete={onDelete} setViewDate={jumpToDate} changeDay={changeDay}/>
         </div>
       ))}
+    </div>
+    {/* Nav buttons rendered outside the overflow strip so they're always visible */}
+    <div style={{position:"absolute",top:16,right:20,display:"flex",gap:4,zIndex:20,pointerEvents:"auto"}}>
+      <button onClick={()=>changeDay(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>‹</button>
+      <button onClick={()=>changeDay(1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#555",WebkitTextFillColor:"#555",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>›</button>
     </div>
     <button onClick={()=>onAdd(viewDate,9)} style={{position:"fixed",right:22,bottom:"calc(max(10px, env(safe-area-inset-bottom)) + 72px)",width:50,height:50,borderRadius:"50%",border:"none",background:"#007AFF",color:"white",fontSize:28,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,122,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,zIndex:10,WebkitTapHighlightColor:"transparent",padding:"0 0 2px 0"}}>+</button>
   </div>;
