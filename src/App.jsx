@@ -2045,8 +2045,8 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
   const [calFilterOpen,setCalFilterOpen]=useState(false);
   return <div ref={swipeCaptureRef} style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <div style={{padding:"10px 14px 8px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-      <div style={{display:"flex",background:"#f2f2f7",borderRadius:10,padding:2,gap:2}}>
-        {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
+      <div style={{display:"flex",gap:5}}>
+        {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 13px",border:"1.5px solid",borderColor:view===v?"#333":"#e5e7eb",borderRadius:20,background:view===v?"#333":"white",color:view===v?"white":"#555",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
       <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
@@ -2192,8 +2192,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
     else if(period==="month"){startD=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);}
     else{startD=new Date(new Date().getFullYear()-offset,0,1);}
     const days=period==="year"?365:period==="month"?new Date(startD.getFullYear(),startD.getMonth()+1,0).getDate():period==="week"?7:1;
-    // For heatmap: allDay events count as 480min (8h)
-    const getHeatDur=e=>e.allDay?480:getDur(e);
+    // For heatmap: allDay events have no duration, skip them
+    const getHeatDur=e=>e.allDay?0:getDur(e);
     for(let i=0;i<days;i++){
       const d=addDays(startD,i);const ds=fmtDate(d);
       const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds));
@@ -2340,8 +2340,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   },[period,heatData,events,heatIds,offset]);
 
   return <div style={{flex:1,overflowY:"auto",padding:"14px 16px 100px"}}>
-    <div style={{display:"flex",background:"#f2f2f7",borderRadius:10,padding:2,gap:2,marginBottom:10}}>
-      {[["day","天"],["week","周"],["month","月"],["year","年"]].map(([v,l])=><button key={v} onClick={()=>{setPeriod(v);setOffset(0);}} style={{flex:1,padding:"7px 0",border:"none",borderRadius:8,background:period===v?"white":"transparent",fontWeight:period===v?700:400,fontSize:13,cursor:"pointer",boxShadow:period===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
+    <div style={{display:"flex",gap:5,marginBottom:10}}>
+      {[["day","天"],["week","周"],["month","月"],["year","年"]].map(([v,l])=><button key={v} onClick={()=>{setPeriod(v);setOffset(0);}} style={{flex:1,padding:"7px 0",border:"1.5px solid",borderColor:period===v?"#333":"#e5e7eb",borderRadius:20,background:period===v?"#333":"white",color:period===v?"white":"#555",fontWeight:period===v?700:400,fontSize:13,cursor:"pointer",textAlign:"center"}}>{l}</button>)}
     </div>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
       <div style={{flex:1,minWidth:0}}>
