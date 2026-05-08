@@ -2953,6 +2953,9 @@ export default function App(){
   const [labels,setLabels]=useStore("cfpx_lb",DEF_LABELS);
   const [tab,setTab]=useState("today");
   const [modal,setModal]=useState(null);
+  const lastEvModal=useRef({t:"add",date:todayStr(),hour:9});
+  if(modal?.t==="add"||modal?.t==="edit") lastEvModal.current=modal;
+  const evModalVisible=modal?.t==="add"||modal?.t==="edit";
   const bp=useBP();const desk=bp==="desktop";
   const [repeatDel,setRepeatDel]=useState(null);
   const openEv=useCallback((ev,instanceDate)=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}),[]);
@@ -3119,12 +3122,30 @@ export default function App(){
         </div>
       : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
     }
-    {(modal?.t==="add"||modal?.t==="edit")&&<Modal title={modal.t==="add"?"新建事项":"编辑事项"} onClose={()=>setModal(null)}>
-      {modal.t==="add"
-        ? <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
-        : <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)}/>
-      }
-    </Modal>}
+    {/* EventForm modal — always mounted to avoid white-flash on mount */}
+    <div style={{position:"fixed",inset:0,zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",
+      visibility:evModalVisible?"visible":"hidden",
+      background:evModalVisible?"rgba(0,0,0,0.36)":"transparent",
+      transition:"background 0.15s",pointerEvents:evModalVisible?"auto":"none"}}
+      onClick={e=>{if(e.target===e.currentTarget)setModal(null);}}>
+      <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{max-height:95vh!important;}}`}</style>
+      <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:440,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0,
+        transform:evModalVisible?"translateY(0)":"translateY(100%)",transition:"transform 0.25s cubic-bezier(0.32,0.72,0,1)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
+          <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{lastEvModal.current?.t==="add"?"新建事项":"编辑事项"}</span>
+          <button onClick={()=>setModal(null)} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
+        </div>
+        <EventForm
+          key={lastEvModal.current?.t==="edit"?`edit-${lastEvModal.current.ev?.id}-${lastEvModal.current.instanceDate||""}`:"add"}
+          ev={lastEvModal.current?.t==="edit"?lastEvModal.current.ev:undefined}
+          instanceDate={lastEvModal.current?.instanceDate}
+          labels={labels} onSave={saveEv} onDelete={delEv}
+          onRepeatDelete={lastEvModal.current?.t==="edit"?inlineRepeatDelete:undefined}
+          onClose={()=>setModal(null)}
+          initialDate={lastEvModal.current?.date}
+          initialHour={lastEvModal.current?.hour}/>
+      </div>
+    </div>
     {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/></Modal>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
   </div>;
