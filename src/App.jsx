@@ -2045,12 +2045,12 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
   const [calFilterOpen,setCalFilterOpen]=useState(false);
   return <div ref={swipeCaptureRef} style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <div style={{padding:"10px 14px 8px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-      <div style={{display:"flex",gap:5}}>
-        {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 13px",border:"1.5px solid",borderColor:view===v?"#333":"#e5e7eb",borderRadius:20,background:view===v?"#333":"white",color:view===v?"white":"#555",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",textAlign:"center"}}>{l}</button>)}
+      <div style={{display:"flex",background:"#f2f2f7",borderRadius:10,padding:2,gap:2}}>
+        {[["month","月"],["week","周"],["day","日"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",borderRadius:8,background:view===v?"white":"transparent",fontWeight:view===v?700:400,fontSize:13,cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
       </div>
       <span style={{flex:1,fontSize:15,fontWeight:700,color:"#111",textAlign:"center"}}>{lbl}</span>
-      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{border:"1.5px solid",borderColor:calFilterIds.length>0?"#555":"#e5e7eb",background:calFilterIds.length>0?"#333":"white",borderRadius:8,padding:"4px 9px",fontSize:12,cursor:"pointer",color:calFilterIds.length>0?"white":"#555",textAlign:"center",display:"flex",alignItems:"center",gap:3}}>
-        <span>选择标签</span>{calFilterIds.length>0&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{calFilterIds.length}</span>}
+      <button onClick={()=>setCalFilterOpen(p=>!p)} style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:calFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+        <span>{calFilterIds.length>0?`${calFilterIds.length}个标签`:"选择标签"}</span><span style={{opacity:0.5,fontSize:10}}>▾</span>
       </button>
       <button onClick={()=>setCur(new Date())} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,padding:"4px 10px",fontSize:12,cursor:"pointer",color:"#555",textAlign:"center"}}>今</button>
       <button onClick={()=>step(-1)} style={{border:"1.5px solid #e5e7eb",background:"white",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",textAlign:"center"}}>‹</button>
@@ -2340,8 +2340,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   },[period,heatData,events,heatIds,offset]);
 
   return <div style={{flex:1,overflowY:"auto",padding:"14px 16px 100px"}}>
-    <div style={{display:"flex",gap:5,marginBottom:10}}>
-      {[["day","天"],["week","周"],["month","月"],["year","年"]].map(([v,l])=><button key={v} onClick={()=>{setPeriod(v);setOffset(0);}} style={{flex:1,padding:"7px 0",border:"1.5px solid",borderColor:period===v?"#333":"#e5e7eb",borderRadius:20,background:period===v?"#333":"white",color:period===v?"white":"#555",fontWeight:period===v?700:400,fontSize:13,cursor:"pointer",textAlign:"center"}}>{l}</button>)}
+    <div style={{display:"flex",background:"#f2f2f7",borderRadius:10,padding:2,gap:2,marginBottom:10}}>
+      {[["day","天"],["week","周"],["month","月"],["year","年"]].map(([v,l])=><button key={v} onClick={()=>{setPeriod(v);setOffset(0);}} style={{flex:1,padding:"7px 0",border:"none",borderRadius:8,background:period===v?"white":"transparent",fontWeight:period===v?700:400,fontSize:13,cursor:"pointer",boxShadow:period===v?"0 1px 4px rgba(0,0,0,0.08)":"",textAlign:"center"}}>{l}</button>)}
     </div>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
       <div style={{flex:1,minWidth:0}}>
@@ -2420,8 +2420,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <div style={{fontSize:14,fontWeight:800,color:"#111"}}>热力图</div>
         <button onClick={()=>setHeatFilterOpen(p=>!p)}
-          style={{border:"1.5px solid",borderColor:!heatIds.includes("all")?"#555":"#e5e7eb",background:!heatIds.includes("all")?"#333":"white",borderRadius:8,padding:"3px 9px",fontSize:11,cursor:"pointer",color:!heatIds.includes("all")?"white":"#555",display:"flex",alignItems:"center",gap:3}}>
-          <span>选择标签</span>{!heatIds.includes("all")&&<span style={{fontSize:10,background:"rgba(255,255,255,0.3)",borderRadius:8,padding:"0 4px"}}>{heatIds.length}</span>}
+          style={{fontSize:11,padding:"4px 10px",border:"1.5px solid #e5e7eb",borderRadius:20,background:heatFilterOpen?"#f2f2f7":"white",color:"#555",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+          <span>{heatIds.includes("all")?"选择标签":`${heatIds.length}个标签`}</span><span style={{opacity:0.5,fontSize:10}}>▾</span>
         </button>
       </div>
       {heatFilterOpen&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
