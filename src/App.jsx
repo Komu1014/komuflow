@@ -2533,7 +2533,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
             {/* Header: two sets of hour labels */}
             <div style={{display:"flex",gap:6,marginBottom:2}}>
               {[0,1].map(col=>(
-                <div key={col} style={{display:"flex",gap:GAP,paddingLeft:22}}>
+                <div key={col} style={{display:"flex",gap:GAP,paddingLeft:col===0?22:0,paddingRight:col===1?22:0}}>
                   {Array.from({length:numCells},(_,ci)=>{
                     const h=ci*hoursPerCell;
                     const showLabel=isMobile?(ci%3===0):(ci%6===0);
@@ -2554,7 +2554,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
                   const isHeatIsAll=heatIds.includes("all");
                   const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
                   return <div key={col} style={{display:"flex",alignItems:"center",gap:GAP}}>
-                    <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>
+                    {col===0&&<div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{di+1}</div>}
                     {Array.from({length:numCells},(_,ci)=>{
                       const hStart=ci*hoursPerCell*60,hEnd=(ci+1)*hoursPerCell*60;
                       const hEvs=filtEvs.filter(e=>{
@@ -2569,6 +2569,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
                       const bg=heatCellColor(domLb,hEvs.length>0?Math.max(10,mins):0,"month");
                       return <div key={ci} style={{width:CS,height:CS,borderRadius:2,background:bg,flexShrink:0}}/>;
                     })}
+                    {col===1&&<div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"left",paddingLeft:2}}>{di+1}</div>}
                   </div>;
                 })}
               </div>;
