@@ -1026,7 +1026,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
                 minMins={parseMins(form.startTime||"09:00")+5}/>
             </div>}
           </>}
-          {timeMode==="point"&&<div style={{padding:"6px 14px 10px",fontSize:11,color:"#aaa"}}>时间点任务：仅记录开始时间，无结束时间</div>}
+
         </>}
       </div>
 
@@ -1794,7 +1794,10 @@ function MonthGrid({cells,events,today,getLb,setCur,setView}){
           // allDay events first
           const aAD=a.allDay?0:1; const bAD=b.allDay?0:1;
           if(aAD!==bAD) return aAD-bAD;
-          return 0;
+          // then sort by start time; no-time events go last
+          const aT=a.startTime?parseMins(a.startTime):Infinity;
+          const bT=b.startTime?parseMins(b.startTime):Infinity;
+          return aT-bT;
         });const hol=HOLIDAYS[fmtDate(c.d)];
         const shown=evs.slice(0,visibleTasks);const extra=evs.length-shown.length;
         return <div key={i} onClick={()=>{setCur(new Date(c.d));setView("week");}}
