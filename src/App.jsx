@@ -2192,28 +2192,27 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
     else if(period==="month"){startD=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);}
     else{startD=new Date(new Date().getFullYear()-offset,0,1);}
     const days=period==="year"?365:period==="month"?new Date(startD.getFullYear(),startD.getMonth()+1,0).getDate():period==="week"?7:1;
+    // For heatmap: allDay events count as 480min (8h)
+    const getHeatDur=e=>e.allDay?480:getDur(e);
     for(let i=0;i<days;i++){
       const d=addDays(startD,i);const ds=fmtDate(d);
       const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds));
-      // per label minutes
       const byLabel={};
       dayEvs.forEach(e=>{
         const lid=e.labelId;
-        byLabel[lid]=(byLabel[lid]||0)+getDur(e);
+        byLabel[lid]=(byLabel[lid]||0)+getHeatDur(e);
       });
       const totalMins=Object.values(byLabel).reduce((s,v)=>s+v,0);
-      // dominant label (most minutes)
       let domLabel=null,domMins=0;
       Object.entries(byLabel).forEach(([lid,m])=>{if(m>domMins){domMins=m;domLabel=lid;}});
       const filteredMins=(isAll?totalMins:(()=>{
         const fEvs=dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
-        return fEvs.reduce((s,e)=>s+getDur(e),0);
+        return fEvs.reduce((s,e)=>s+getHeatDur(e),0);
       })());
-      // dominant label among selected
       let filtDomLabel=domLabel;
       if(!isAll){
         const filtByLabel={};
-        dayEvs.filter(e=>heatIds.includes(e.labelId)).forEach(e=>{filtByLabel[e.labelId]=(filtByLabel[e.labelId]||0)+getDur(e);});
+        dayEvs.filter(e=>heatIds.includes(e.labelId)).forEach(e=>{filtByLabel[e.labelId]=(filtByLabel[e.labelId]||0)+getHeatDur(e);});
         let fd=null,fm=0;Object.entries(filtByLabel).forEach(([lid,m])=>{if(m>fm){fm=m;fd=lid;}});
         filtDomLabel=fd||domLabel;
       }
@@ -2595,12 +2594,16 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
         </div>;
       })()}
 
-      <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"center"}}>
-        <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"0min":period==="week"?"0min":"0h"}</span>
-        {[0.15,0.35,0.55,0.75,1.0].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
-        <span style={{fontSize:10,color:"#8e8e93"}}>{period==="day"?"10min":period==="week"?"1h":period==="month"?"2h+":"12h+"}</span>
-        {(heatIsAll||heatIds.length>1)&&null}
-      </div>
+      {/* Legend */}
+      {(()=>{
+        const legendCap=period==="day"?10:period==="week"?60:period==="year"?720:isMobileView?120:60;
+        const legendLabel=legendCap<60?`${legendCap}min`:legendCap%60===0?`${legendCap/60}h+`:`${Math.floor(legendCap/60)}h${legendCap%60}m+`;
+        return <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"center"}}>
+          <span style={{fontSize:10,color:"#8e8e93"}}>0</span>
+          {[0.15,0.35,0.55,0.75,1.0].map((a,i)=><div key={i} style={{width:12,height:12,borderRadius:3,background:`rgba(${legendR},${legendG},${legendB},${a})`}}/>)}
+          <span style={{fontSize:10,color:"#8e8e93"}}>{legendLabel}</span>
+        </div>;
+      })()}
     </div>
 
     {/* ── Bar + Line combo chart (overlapping, not stacked) ── */}
