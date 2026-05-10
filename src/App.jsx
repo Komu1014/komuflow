@@ -1652,23 +1652,25 @@ const TodayPage=React.memo(function TodayPage({events,labels,onOpen,onAdd,onTogg
           : [];
         return (
         <div key={slotIdx} style={{width:W>0?`${W}px`:"100%",minWidth:"100%",flexShrink:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:110}}>
-          {inProgressEvs.length>0&&<div style={{margin:"12px 16px 0",background:"linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)",borderRadius:16,padding:"12px 14px",boxShadow:"0 4px 18px rgba(0,0,0,0.18)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:"#FF6B6B",boxShadow:"0 0 6px #FF6B6B",animation:"pulse 1.5s infinite"}}/>
-              <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)",letterSpacing:1,textTransform:"uppercase"}}>进行中</span>
-              <style>{`@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px #FF6B6B;}50%{opacity:0.5;box-shadow:0 0 12px #FF6B6B;}}`}</style>
+          {inProgressEvs.length>0&&<div style={{margin:"12px 16px 0",background:"white",borderRadius:14,border:"1px solid #ebebeb",overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px 8px",borderBottom:"1px solid #f5f5f5"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:"#FF9500",flexShrink:0}}/>
+              <span style={{fontSize:11,fontWeight:700,color:"#8e8e93",letterSpacing:0.5}}>进行中</span>
             </div>
-            {inProgressEvs.map(ev=>{
+            {inProgressEvs.map((ev,i)=>{
               const lb=getLb(ev.labelId);
               return <div key={ev.id} onClick={()=>onOpen({...ev,_openTab:"timer"},ds)}
-                style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:"1px solid rgba(255,255,255,0.07)",cursor:"pointer"}}>
-                <span style={{fontSize:18}}>{lb.emoji}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:600,color:"white",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title||"未命名任务"}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:1}}>已计时 {fmtSecs(ev.timerSecs)} · 点击继续</div>
+                style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",borderTop:i>0?"1px solid #f8f8f8":"none",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
+                <div style={{width:28,height:28,borderRadius:8,background:lb.color+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:15}}>{lb.emoji}</span>
                 </div>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <svg width="12" height="14" viewBox="0 0 12 14" fill="white"><path d="M2 1l9 6-9 6V1z"/></svg>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:600,color:"#111",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title||"未命名任务"}</div>
+                  <div style={{fontSize:11,color:"#8e8e93",marginTop:2}}>已计时 {fmtSecs(ev.timerSecs)}</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                  <span style={{fontSize:11,color:lb.color,fontWeight:600,background:lb.color+"18",borderRadius:20,padding:"3px 8px"}}>{lb.name}</span>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke={lb.color} strokeWidth="1.2"/><path d="M5.5 4.5L9 7l-3.5 2.5" fill={lb.color}/></svg>
                 </div>
               </div>;
             })}
