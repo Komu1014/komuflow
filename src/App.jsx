@@ -782,7 +782,7 @@ function InlineRepeatDelete({onRepeatDelete,open,onClose,title:sheetTitle,opts:c
 }
 
 /* ══════ EVENT FORM ══════ */
-function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClose,initialDate,initialHour}){
+function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClose,initialDate,initialHour,onTimerActive}){
   const isNew=!ev;
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
   const dh=initialHour!=null?initialHour:9;
@@ -1080,12 +1080,25 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     {tab==="timer"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:"10px 0"}}>
       <div style={{fontSize:58,fontWeight:100,letterSpacing:3,color:"#111",fontVariantNumeric:"tabular-nums"}}>{fmtSecs(elapsed)}</div>
       <div style={{display:"flex",gap:12}}>
-        <button onClick={()=>setRunning(p=>!p)} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"#333",color:"white",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
+        <button onClick={()=>{
+          const next=!running;
+          setRunning(next);
+          if(next&&onTimerActive){
+            // hand off to root-level fullscreen overlay
+            onTimerActive({
+              title:form.title,
+              startTime:form.startTime,
+              getElapsed:()=>elapsed,
+              onPause:()=>setRunning(false),
+              onStop:()=>{setRunning(false);stopAndApply();},
+              onLater:()=>{setForm(p=>({...p,timerSecs:elapsed}));setRunning(false);onClose();},
+            });
+          }
+        }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"#333",color:"white",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
         {elapsed>0&&!running&&<button onClick={stopAndApply} style={{padding:"12px 20px",borderRadius:30,border:"none",background:"#555",color:"white",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>应用时长</button>}
         {elapsed>0&&<button onClick={()=>{setRunning(false);setElapsed(0);setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:14,cursor:"pointer",textAlign:"center"}}>重置</button>}
       </div>
       {elapsed>0&&!running&&!timerApplied&&<button onClick={()=>{
-        // "稍后继续": save current elapsed into form but don't apply end time yet, close modal
         setForm(p=>({...p,timerSecs:elapsed}));
         onClose();
       }} style={{padding:"10px 28px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>稍后继续</button>}
@@ -1094,21 +1107,6 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
         <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，填写名称后即可保存":"点击「应用时长」将更新结束时间"}</div>
       </div>}
       {form.startTime&&<div style={{fontSize:12,color:"#8e8e93"}}>开始时间：{form.startTime} → {form.endTime||"—"}</div>}
-    </div>}
-    {/* Fullscreen timer overlay — shown when timer is running */}
-    {tab==="timer"&&running&&<div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(17,17,17,0.97)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:28}}>
-      <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{form.title||"计时中"}</div>
-      <div style={{fontSize:88,fontWeight:100,letterSpacing:4,color:"white",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmtSecs(elapsed)}</div>
-      {form.startTime&&<div style={{fontSize:14,color:"rgba(255,255,255,0.45)"}}>开始时间：{form.startTime}</div>}
-      <div style={{display:"flex",gap:14,marginTop:8}}>
-        <button onClick={()=>setRunning(false)} style={{padding:"14px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.15)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer",backdropFilter:"blur(8px)"}}>暂停</button>
-        <button onClick={()=>{setRunning(false);stopAndApply();}} style={{padding:"14px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>结束</button>
-      </div>
-      <button onClick={()=>{
-        setForm(p=>({...p,timerSecs:elapsed}));
-        setRunning(false);
-        onClose();
-      }} style={{marginTop:4,padding:"10px 28px",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.55)",fontSize:14,cursor:"pointer"}}>稍后继续</button>
     </div>}
 
     {/* Repeat delete is now handled via RepeatDeleteModal from the parent */}
@@ -1623,11 +1621,40 @@ const TodayPage=React.memo(function TodayPage({events,labels,onOpen,onAdd,onTogg
       position:"absolute",inset:0,display:"flex",
       willChange:"transform",
     }}>
-      {slotState.dates.map((ds,slotIdx)=>(
+      {slotState.dates.map((ds,slotIdx)=>{
+        // "进行中" tasks: have timerSecs > 0, not done on this date, shown only on today
+        const inProgressEvs = ds===todayStr()
+          ? getForDate(events,ds,{includeUnscheduled:true}).filter(e=>
+              (e.timerSecs||0)>0 && !isDoneOn(e,ds)
+            )
+          : [];
+        return (
         <div key={slotIdx} style={{width:W>0?`${W}px`:"100%",minWidth:"100%",flexShrink:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:110}}>
+          {inProgressEvs.length>0&&<div style={{margin:"12px 16px 0",background:"linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)",borderRadius:16,padding:"12px 14px",boxShadow:"0 4px 18px rgba(0,0,0,0.18)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:"#FF6B6B",boxShadow:"0 0 6px #FF6B6B",animation:"pulse 1.5s infinite"}}/>
+              <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)",letterSpacing:1,textTransform:"uppercase"}}>进行中</span>
+              <style>{`@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px #FF6B6B;}50%{opacity:0.5;box-shadow:0 0 12px #FF6B6B;}}`}</style>
+            </div>
+            {inProgressEvs.map(ev=>{
+              const lb=getLb(ev.labelId);
+              return <div key={ev.id} onClick={()=>onOpen({...ev,_openTab:"timer"},ds)}
+                style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:"1px solid rgba(255,255,255,0.07)",cursor:"pointer"}}>
+                <span style={{fontSize:18}}>{lb.emoji}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:600,color:"white",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title||"未命名任务"}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:1}}>已计时 {fmtSecs(ev.timerSecs)} · 点击继续</div>
+                </div>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <svg width="12" height="14" viewBox="0 0 12 14" fill="white"><path d="M2 1l9 6-9 6V1z"/></svg>
+                </div>
+              </div>;
+            })}
+          </div>}
           <DayPanel dateStr={ds} events={events} labels={labels} sections={sections} getLb={getLb} lightenHex={lightenHex} onAdd={onAdd} onOpen={onOpen} onToggle={onToggle} onDelete={onDelete} setViewDate={jumpToDate} changeDay={changeDay}/>
         </div>
-      ))}
+        );
+      })}
     </div>
     {/* Nav buttons rendered outside the overflow strip so they're always visible */}
     <div style={{position:"absolute",top:16,right:20,display:"flex",gap:4,zIndex:20,pointerEvents:"auto"}}>
@@ -1753,7 +1780,7 @@ function Timeline({days,events,labels,onEventClick,onSlotClick,onDayHeaderClick,
         const adEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>e.allDay);
         const getLbLocal=id=>flat.find(l=>l.id===id)||{color:"#ccc",emoji:"📌"};
         return <div key={i} style={{padding:"2px 2px",minHeight:adEvs.length>0?20:16,display:"flex",flexDirection:"column",gap:1}}>
-          {adEvs.map(ev=>{const lb=getLbLocal(ev.labelId);return <div key={ev.id} onClick={()=>onEventClick(ev,ds)} style={{fontSize:9,background:lb.color+"33",color:"#333",borderRadius:3,padding:"1px 3px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"13px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
+          {adEvs.map(ev=>{const lb=getLbLocal(ev.labelId);const done=isDoneOn(ev,ds);return <div key={ev.id} onClick={()=>onEventClick(ev,ds)} style={{fontSize:9,background:done?lb.color:lb.color+"33",color:done?"white":"#333",borderRadius:3,padding:"1px 3px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"13px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
         </div>;
       })}
     </div>}
@@ -2024,7 +2051,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
           {wDays.map((d,i)=>{
             const ds=fmtDate(d);const adEvs=getForDate(filteredEvents,ds,{includeUnscheduled:false}).filter(e=>e.allDay);
             return <div key={i} style={{padding:"2px 2px",minHeight:adEvs.length>0?20:14,display:"flex",flexDirection:"column",gap:1}}>
-              {adEvs.map(ev=>{const lb=getLb(ev.labelId);return <div key={ev.id} onClick={()=>onOpen(ev,ds)} style={{fontSize:9,background:lb.color+"33",color:"#333",borderRadius:3,padding:"1px 3px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"13px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
+              {adEvs.map(ev=>{const lb=getLb(ev.labelId);const done=isDoneOn(ev,ds);return <div key={ev.id} onClick={()=>onOpen(ev,ds)} style={{fontSize:9,background:done?lb.color:lb.color+"33",color:done?"white":"#333",borderRadius:3,padding:"1px 3px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"13px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
             </div>;
           })}
         </div>}
@@ -2049,7 +2076,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
           <span style={{fontSize:9,color:"#8e8e93",fontWeight:600,}}>全天</span>
         </div>
         <div style={{padding:"2px 4px",display:"flex",flexDirection:"column",gap:2}}>
-          {adEvs.map(ev=>{const lb=getLb(ev.labelId);return <div key={ev.id} onClick={()=>onOpen(ev,ds)} style={{fontSize:10,background:lb.color+"33",color:"#333",borderRadius:4,padding:"2px 6px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"15px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
+          {adEvs.map(ev=>{const lb=getLb(ev.labelId);const done=isDoneOn(ev,ds);return <div key={ev.id} onClick={()=>onOpen(ev,ds)} style={{fontSize:10,background:done?lb.color:lb.color+"33",color:done?"white":"#333",borderRadius:4,padding:"2px 6px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:"15px",borderLeft:`2px solid ${lb.color}`,cursor:"pointer"}}>{lb.emoji} {ev.title}</div>;})}
         </div>
       </div>}
     </div>;
@@ -3004,6 +3031,48 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
   </div>;
 }
 
+/* ══════ FULLSCREEN TIMER OVERLAY ══════ */
+function FullscreenTimer({info, onDismiss}){
+  // info: { title, startTime, onPause, onStop, onLater }
+  // We drive our own clock here since EventForm's elapsed is in closure
+  const [secs, setSecs] = useState(0);
+  const startTsRef = useRef(Date.now());
+  const rafRef = useRef();
+  useEffect(()=>{
+    const tick=()=>{ setSecs(Math.floor((Date.now()-startTsRef.current)/1000)); rafRef.current=requestAnimationFrame(tick); };
+    rafRef.current=requestAnimationFrame(tick);
+    const onVis=()=>{ if(document.visibilityState==="visible") setSecs(Math.floor((Date.now()-startTsRef.current)/1000)); };
+    document.addEventListener("visibilitychange",onVis);
+    return()=>{ cancelAnimationFrame(rafRef.current); document.removeEventListener("visibilitychange",onVis); };
+  },[]);
+
+  return <div style={{position:"fixed",inset:0,zIndex:99999,background:"#0d0d0d",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0}}>
+    <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,0.4)",letterSpacing:2,textTransform:"uppercase",marginBottom:24,maxWidth:280,textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+      {info.title||"计时中"}
+    </div>
+    <div style={{fontSize:96,fontWeight:100,letterSpacing:6,color:"white",fontVariantNumeric:"tabular-nums",lineHeight:1,marginBottom:12}}>
+      {fmtSecs(secs)}
+    </div>
+    {info.startTime&&<div style={{fontSize:14,color:"rgba(255,255,255,0.3)",marginBottom:40}}>
+      开始 {info.startTime}
+    </div>}
+    <div style={{display:"flex",gap:14,marginBottom:20}}>
+      <button onClick={()=>{ info.onPause(); onDismiss(); }}
+        style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
+        暂停
+      </button>
+      <button onClick={()=>{ info.onStop(); onDismiss(); }}
+        style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
+        结束
+      </button>
+    </div>
+    <button onClick={()=>{ info.onLater(); onDismiss(); }}
+      style={{padding:"10px 28px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:14,cursor:"pointer"}}>
+      稍后继续
+    </button>
+  </div>;
+}
+
 /* ══════ APP ROOT ══════ */
 export default function App(){
   const [events,setEvents]=useStore("cfpx_ev",makeSamples());
@@ -3012,6 +3081,7 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const bp=useBP();const desk=bp==="desktop";
   const [repeatDel,setRepeatDel]=useState(null);
+  const [timerOverlay,setTimerOverlay]=useState(null); // {title,startTime,onPause,onStop,onLater}
   const openEv=useCallback((ev,instanceDate)=>setModal({t:"edit",ev,instanceDate:instanceDate||ev.date}),[]);
   const addEv=useCallback((date,hour)=>setModal({t:"add",date,hour}),[]);
   const toggleDone=useCallback((id,dateStr)=>setEvents(p=>p.map(e=>{
@@ -3177,12 +3247,13 @@ export default function App(){
       : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
     }
     {modal?.t==="add"&&<Modal title="新建事项" onClose={()=>setModal(null)}>
-      <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour}/>
+      <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour} onTimerActive={info=>setTimerOverlay(info)}/>
     </Modal>}
     {modal?.t==="edit"&&<Modal title="编辑事项" onClose={()=>setModal(null)}>
-      <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)}/>
+      <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)} onTimerActive={info=>setTimerOverlay(info)}/>
     </Modal>}
     {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/></Modal>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
+    {timerOverlay&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)}/>}
   </div>;
 }
