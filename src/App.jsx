@@ -1084,11 +1084,31 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
         {elapsed>0&&!running&&<button onClick={stopAndApply} style={{padding:"12px 20px",borderRadius:30,border:"none",background:"#555",color:"white",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>应用时长</button>}
         {elapsed>0&&<button onClick={()=>{setRunning(false);setElapsed(0);setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:14,cursor:"pointer",textAlign:"center"}}>重置</button>}
       </div>
+      {elapsed>0&&!running&&!timerApplied&&<button onClick={()=>{
+        // "稍后继续": save current elapsed into form but don't apply end time yet, close modal
+        setForm(p=>({...p,timerSecs:elapsed}));
+        onClose();
+      }} style={{padding:"10px 28px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>稍后继续</button>}
       {elapsed>0&&<div style={{background:"#f2f2f7",borderRadius:12,padding:"10px 22px",textAlign:"center"}}>
         <div style={{fontSize:14,color:"#333",fontWeight:700}}>已计时 {fmtSecs(elapsed)}</div>
         <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，填写名称后即可保存":"点击「应用时长」将更新结束时间"}</div>
       </div>}
       {form.startTime&&<div style={{fontSize:12,color:"#8e8e93"}}>开始时间：{form.startTime} → {form.endTime||"—"}</div>}
+    </div>}
+    {/* Fullscreen timer overlay — shown when timer is running */}
+    {tab==="timer"&&running&&<div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(17,17,17,0.97)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:28}}>
+      <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{form.title||"计时中"}</div>
+      <div style={{fontSize:88,fontWeight:100,letterSpacing:4,color:"white",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmtSecs(elapsed)}</div>
+      {form.startTime&&<div style={{fontSize:14,color:"rgba(255,255,255,0.45)"}}>开始时间：{form.startTime}</div>}
+      <div style={{display:"flex",gap:14,marginTop:8}}>
+        <button onClick={()=>setRunning(false)} style={{padding:"14px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.15)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer",backdropFilter:"blur(8px)"}}>暂停</button>
+        <button onClick={()=>{setRunning(false);stopAndApply();}} style={{padding:"14px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>结束</button>
+      </div>
+      <button onClick={()=>{
+        setForm(p=>({...p,timerSecs:elapsed}));
+        setRunning(false);
+        onClose();
+      }} style={{marginTop:4,padding:"10px 28px",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.55)",fontSize:14,cursor:"pointer"}}>稍后继续</button>
     </div>}
 
     {/* Repeat delete is now handled via RepeatDeleteModal from the parent */}
@@ -2550,7 +2570,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
                   const di=rowIdx*2+col;
                   const d=new Date(base.getFullYear(),base.getMonth(),di+1);
                   const ds=fmtDate(d);
-                  const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime);
+                  const dayEvs=getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime&&!e.allDay);
                   const isHeatIsAll=heatIds.includes("all");
                   const filtEvs=isHeatIsAll?dayEvs:dayEvs.filter(e=>heatIds.includes(e.labelId)||(e.autoTags||[]).some(t=>heatIds.includes(t)));
                   return <div key={col} style={{display:"flex",alignItems:"center",gap:GAP}}>
