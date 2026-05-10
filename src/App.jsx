@@ -909,7 +909,6 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     if(form.startTime){
       startM=parseMins(form.startTime);
     } else {
-      // No start time set — derive from current time minus elapsed
       const now=new Date();
       const nowM=now.getHours()*60+now.getMinutes();
       startM=((nowM-elapsedMins)+1440)%1440;
@@ -921,6 +920,26 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     const newEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
     setForm(p=>({...p,endTime:newEnd,timerSecs:elapsed}));
     setTimerApplied(true);
+  };
+
+  // Compute start/end times from elapsed without mutating form state — used by 稍后继续
+  const computeTimedSave=(secs)=>{
+    const elapsedMins=Math.max(1,Math.round(secs/60));
+    let startM;
+    let startTime=form.startTime;
+    if(startTime){
+      startM=parseMins(startTime);
+    } else {
+      const now=new Date();
+      const nowM=now.getHours()*60+now.getMinutes();
+      startM=((nowM-elapsedMins)+1440)%1440;
+      startTime=`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
+    }
+    const endM=(startM+elapsedMins)%1440;
+    const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+    const saved={...form,timerSecs:secs,startTime,endTime};
+    if(!saved.title.trim()) saved.title="未命名任务";
+    return saved;
   };
 
   // Handle time mode change
@@ -1091,7 +1110,11 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
               getElapsed:()=>elapsed,
               onPause:()=>setRunning(false),
               onStop:()=>{setRunning(false);stopAndApply();},
-              onLater:()=>{setForm(p=>({...p,timerSecs:elapsed}));setRunning(false);onClose();},
+              onLater:(fsecs)=>{
+                const secs=fsecs!=null?fsecs:elapsed;
+                setRunning(false);
+                onSave(computeTimedSave(secs));
+              },
             });
           }
         }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"#333",color:"white",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
@@ -1099,8 +1122,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
         {elapsed>0&&<button onClick={()=>{setRunning(false);setElapsed(0);setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:14,cursor:"pointer",textAlign:"center"}}>重置</button>}
       </div>
       {elapsed>0&&!running&&!timerApplied&&<button onClick={()=>{
-        setForm(p=>({...p,timerSecs:elapsed}));
-        onClose();
+        onSave(computeTimedSave(elapsed));
       }} style={{padding:"10px 28px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>稍后继续</button>}
       {elapsed>0&&<div style={{background:"#f2f2f7",borderRadius:12,padding:"10px 22px",textAlign:"center"}}>
         <div style={{fontSize:14,color:"#333",fontWeight:700}}>已计时 {fmtSecs(elapsed)}</div>
@@ -3066,7 +3088,7 @@ function FullscreenTimer({info, onDismiss}){
         结束
       </button>
     </div>
-    <button onClick={()=>{ info.onLater(); onDismiss(); }}
+    <button onClick={()=>{ info.onLater(secs); onDismiss(); }}
       style={{padding:"10px 28px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:14,cursor:"pointer"}}>
       稍后继续
     </button>
