@@ -359,14 +359,21 @@ function ColorPicker({value,onChange}){
 
 /* ══════ MODAL ══════ */
 function Modal({title,onClose,children,width=440,hideHeader=false}){
+  const isMobile=window.innerWidth<480;
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,willChange:"opacity",transform:"translateZ(0)"}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{border-radius:22px 22px 0 0!important;max-height:100vh!important;height:100vh!important;max-width:100%!important;}}`}</style>
     <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0,transform:"translateZ(0)",willChange:"transform"}}>
-      {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
-        <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
-        <button onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
-      </div>}
+      {!hideHeader&&title&&(isMobile
+        ? <div style={{display:"flex",alignItems:"center",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
+            <button onClick={onClose} style={{border:"none",background:"none",padding:"0 12px 0 0",cursor:"pointer",fontSize:20,color:"#333",lineHeight:1,flexShrink:0}}>‹</button>
+            <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
+          </div>
+        : <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
+            <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
+            <button onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
+          </div>
+      )}
       {children}
     </div>
   </div>;
@@ -669,7 +676,6 @@ function LabelManager({labels,onSave,initialLabelId}){
         onCancel={()=>setCed(null)}
         onOk={(latest)=>{const updated=list.map(x=>x.id===lb.id?{...x,children:[...(x.children||[]),{...ced.child,...latest}]}:x);setList(updated);syncList(updated);setCed(null);}}/>}
       <div style={{display:"flex",gap:10,marginTop:16}}>
-        <button onClick={()=>onSave(list)} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>完成</button>
       </div>
     </div>;
   }
@@ -699,9 +705,8 @@ function LabelManager({labels,onSave,initialLabelId}){
           <span style={{fontSize:14,color:"#c0c0c0"}}>›</span>
         </div>
       </div>)}
-    {!ed&&<div style={{display:"flex",gap:10,marginTop:8}}>
-      <button onClick={()=>{setEd({id:uuid(),name:"",emoji:"🏷",color:"#4A90D9",keywords:[],children:[],isNew:true});setCed(null);}} style={{flex:1,padding:"10px",border:"1.5px solid #555",borderRadius:12,background:"white",color:"#333",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>+ 新建标签</button>
-      <button onClick={()=>onSave(list)} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>完成</button>
+    {!ed&&<div style={{position:"sticky",bottom:0,background:"white",paddingTop:8,paddingBottom:"max(12px,env(safe-area-inset-bottom))"}}>
+      <button onClick={()=>{setEd({id:uuid(),name:"",emoji:"🏷",color:"#4A90D9",keywords:[],children:[],isNew:true});setCed(null);}} style={{width:"100%",padding:"12px",border:"1.5px solid #555",borderRadius:12,background:"white",color:"#333",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>+ 新建标签</button>
     </div>}
     {ed?.isNew&&<LabelEditForm data={ed} setData={setEd} title="新建标签"
       onCancel={()=>setEd(null)}
@@ -1134,24 +1139,23 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     </div>}
 
     {/* Repeat delete is now handled via RepeatDeleteModal from the parent */}
-    <div style={{display:"flex",gap:8,marginTop:18}}>
+    <div style={{position:"sticky",bottom:0,background:"white",paddingTop:10,paddingBottom:"max(8px,env(safe-area-inset-bottom))",display:"flex",gap:8}}>
       {!isNew&&<button onClick={()=>{
         if(form.repeat&&form.repeat!=="none"&&onRepeatDelete){setShowRepeatDel(true);}
         else onDelete(form.id);
-      }} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
+      }} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
       {!(isNew&&tab==="timer"&&!timerApplied)&&<button onClick={()=>{
         if(!form.title.trim()) return;
         const saved={...form,timerSecs:elapsed};
         if(!hasTime){saved.startTime=null;saved.endTime=null;saved.allDay=false;}
         if(timerApplied) saved.done=true;
-        // If editing an existing repeat task, ask which instances to update
         if(!isNew&&ev?.repeat&&ev.repeat!=="none"){
           setPendingSave(saved);
           setShowRepeatSave(true);
         } else {
           onSave(saved);
         }
-      }} style={{flex:1,padding:"10px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
+      }} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
     </div>
     <InlineRepeatDelete open={showRepeatDel} onClose={()=>setShowRepeatDel(false)} onRepeatDelete={key=>{setShowRepeatDel(false);onRepeatDelete&&onRepeatDelete(key);}}/>
     <InlineRepeatDelete
@@ -1307,7 +1311,7 @@ function MiniCalendarPicker({currentDate, onSelect, onClose}){
           const ds=fmtDate(d);
           const isSel=ds===currentDate;
           const isT=isSameDay(d,today);
-          const isW=dowMon(d)===5||dowMon(d)===6;
+          const isW=dowMon(d)>=5;
           return <div key={i} onClick={()=>{onSelect(ds);onClose();}}
             style={{display:"flex",alignItems:"center",justifyContent:"center",height:32,borderRadius:8,cursor:"pointer",
               background:isSel?"#333":isT?"#f2f2f7":"transparent",
@@ -1787,7 +1791,7 @@ function Timeline({days,events,labels,onEventClick,onSlotClick,onDayHeaderClick,
     <div style={{display:"grid",gridTemplateColumns:COL,borderBottom:anyAllDay?"none":"1.5px solid #ebebeb",flexShrink:0}}>
       <div style={{width:44}}/>
       {days.map((d,i)=>{
-        const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
+        const isT=isSameDay(d,today);const isW=dowMon(d)>=5;const hol=HOLIDAYS[fmtDate(d)];
         return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"5px 0 3px",cursor:onDayHeaderClick?"pointer":"default"}} onClick={onDayHeaderClick?()=>onDayHeaderClick(d):undefined}>
           <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px"}}>{WD[dowMon(d)]}</div>
           <div style={{width:28,height:28,borderRadius:"50%",marginTop:2,background:isT?"#333":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1864,7 +1868,7 @@ function MonthGrid({cells,events,today,getLb,setCur,setView}){
     </div>
     <div ref={gridRef} style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gridTemplateRows:`repeat(${rows},1fr)`,padding:"0 8px",overflow:"hidden"}}>
       {cells.map((c,i)=>{
-        const isT=isSameDay(c.d,today);const isW=i%7===0||i%7===6;
+        const isT=isSameDay(c.d,today);const isW=i%7>=5;
         const evs=getForDate(events,fmtDate(c.d),{includeUnscheduled:false}).slice().sort((a,b)=>{
           // allDay events first
           const aAD=a.allDay?0:1; const bAD=b.allDay?0:1;
@@ -2060,7 +2064,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
         <div style={{display:"grid",gridTemplateColumns:COL,borderBottom:anyAD?"none":"1.5px solid #ebebeb"}}>
           <div style={{width:44}}/>
           {wDays.map((d,i)=>{
-            const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
+            const isT=isSameDay(d,today);const isW=dowMon(d)>=5;const hol=HOLIDAYS[fmtDate(d)];
             return <div key={i} style={{textAlign:"center",padding:"5px 0 3px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center"}} onClick={()=>{setCur(d);setView("day");}}>
               <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px",width:"100%",textAlign:"center"}}>{WD[dowMon(d)]}</div>
               <div style={{width:28,height:28,borderRadius:"50%",marginTop:2,background:isT?"#333":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -2084,7 +2088,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
       </div>;
     }
     // day view
-    const d=panelCur;const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
+    const d=panelCur;const isT=isSameDay(d,today);const isW=dowMon(d)>=5;const hol=HOLIDAYS[fmtDate(d)];
     const ds=fmtDate(d);const adEvs=getForDate(filteredEvents,ds,{includeUnscheduled:false}).filter(e=>e.allDay);
     return <div>
       <div style={{display:"grid",gridTemplateColumns:"44px 1fr",borderBottom:adEvs.length>0?"none":"1.5px solid #ebebeb"}}>
@@ -2848,8 +2852,8 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
               points={lineVals.map((v,i)=>`${40+i*W_ITEM+W_ITEM/2},${H+4-(v/maxVal)*H}`).join(" ")}
               fill="none" stroke={lineColor} strokeWidth={2}
               strokeLinejoin="round" strokeLinecap="round" opacity={0.9}/>
-            {lineVals.map((v,i)=><circle key={i} cx={40+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={2.2}
-              fill={lineColor} opacity={0.9}/>)}
+            {lineVals.map((v,i)=><circle key={i} cx={40+i*W_ITEM+W_ITEM/2} cy={H+4-(v/maxVal)*H} r={0}
+              fill="none" opacity={0}/>)}
             {/* X labels */}
             {aggData.map((d,i)=>{
               let show=false;
