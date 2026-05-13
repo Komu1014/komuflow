@@ -358,23 +358,28 @@ function ColorPicker({value,onChange}){
 }
 
 /* ══════ MODAL ══════ */
-function Modal({title,onClose,children,width=440,hideHeader=false}){
-  const isMobile=window.innerWidth<480;
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,willChange:"opacity",transform:"translateZ(0)"}}
+function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
+  const isMobile=typeof window!=="undefined"&&window.innerWidth<480;
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{border-radius:22px 22px 0 0!important;max-height:100vh!important;height:100vh!important;max-width:100%!important;}}`}</style>
-    <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0,transform:"translateZ(0)",willChange:"transform"}}>
+    <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{border-radius:0!important;height:100dvh!important;height:100vh!important;max-height:100vh!important;max-width:100%!important;}}`}</style>
+    <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0}}>
       {!hideHeader&&title&&(isMobile
-        ? <div style={{display:"flex",alignItems:"center",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
-            <button onClick={onClose} style={{border:"none",background:"none",padding:"0 12px 0 0",cursor:"pointer",fontSize:20,color:"#333",lineHeight:1,flexShrink:0}}>‹</button>
+        ? <div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
+            <button onClick={onClose} style={{border:"none",background:"none",padding:"0 14px 0 0",cursor:"pointer",fontSize:24,color:"#333",lineHeight:1,flexShrink:0,marginLeft:-4}}>‹</button>
             <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
           </div>
-        : <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
+        : <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
             <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
             <button onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
           </div>
       )}
-      {children}
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px 0",minHeight:0}}>
+        {children}
+      </div>
+      {footer&&<div style={{flexShrink:0,padding:"10px 20px",paddingBottom:"max(16px,env(safe-area-inset-bottom))",borderTop:"1px solid #f2f2f2",background:"white"}}>
+        {footer}
+      </div>}
     </div>
   </div>;
 }
@@ -517,14 +522,19 @@ function LabelEditForm({data,setData,title:t,onOk,onCancel,onDelete}){
 }
 
 /* ══════ LABEL MANAGER ══════ */
-function LabelManager({labels,onSave,initialLabelId}){
+function LabelManager({labels,onSave,initialLabelId,setFooter}){
   const [list,setList]=useState(()=>labels.map(l=>({...l,children:(l.children||[]).map(c=>({...c}))})));
   const [ed,setEd]=useState(null);
   const [ced,setCed]=useState(null);
-  const [selLabel,setSelLabel]=useState(initialLabelId||null); // selected label for detail view
+  const [selLabel,setSelLabel]=useState(initialLabelId||null);
   // syncList: persist labels to parent WITHOUT closing modal
   const syncList=(next)=>{onSave(next,/*noClose=*/true);};
 
+  useEffect(()=>{
+    if(!setFooter||ed||selLabel) return;
+    setFooter(<button onClick={()=>{setEd({id:uuid(),name:"",emoji:"🏷",color:"#4A90D9",keywords:[],children:[],isNew:true});setCed(null);}} style={{width:"100%",padding:"14px",border:"1.5px solid #555",borderRadius:12,background:"white",color:"#333",cursor:"pointer",fontSize:14,fontWeight:600,textAlign:"center"}}>+ 新建标签</button>);
+    return()=>{ if(setFooter) setFooter(null); };
+  },[setFooter,ed,selLabel]);
   // Drag-sort state
   const dragSrc=useRef(null);
   const [dragOver,setDragOver]=useState(null);
@@ -705,9 +715,7 @@ function LabelManager({labels,onSave,initialLabelId}){
           <span style={{fontSize:14,color:"#c0c0c0"}}>›</span>
         </div>
       </div>)}
-    {!ed&&<div style={{position:"sticky",bottom:0,background:"white",paddingTop:8,paddingBottom:"max(12px,env(safe-area-inset-bottom))"}}>
-      <button onClick={()=>{setEd({id:uuid(),name:"",emoji:"🏷",color:"#4A90D9",keywords:[],children:[],isNew:true});setCed(null);}} style={{width:"100%",padding:"12px",border:"1.5px solid #555",borderRadius:12,background:"white",color:"#333",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>+ 新建标签</button>
-    </div>}
+    {!ed&&<div style={{marginTop:8}}/>}
     {ed?.isNew&&<LabelEditForm data={ed} setData={setEd} title="新建标签"
       onCancel={()=>setEd(null)}
       onOk={(latest)=>{const updated=[...list,{...ed,...latest}];setList(updated);syncList(updated);setEd(null);}}/>}
@@ -789,7 +797,7 @@ function InlineRepeatDelete({onRepeatDelete,open,onClose,title:sheetTitle,opts:c
 }
 
 /* ══════ EVENT FORM ══════ */
-function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClose,initialDate,initialHour,onTimerActive}){
+function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClose,initialDate,initialHour,onTimerActive,setFooter}){
   const isNew=!ev;
   const flat=useMemo(()=>flattenLabels(labels),[labels]);
   const dh=initialHour!=null?initialHour:9;
@@ -813,6 +821,28 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
   const [showRepeatSave,setShowRepeatSave]=useState(false);
   const [pendingSave,setPendingSave]=useState(null);
   const [openPicker,setOpenPicker]=useState(null); // "start" | "end" | null
+
+  const doSave=()=>{
+    if(!form.title.trim()) return;
+    const saved={...form,timerSecs:elapsed};
+    if(!hasTime){saved.startTime=null;saved.endTime=null;saved.allDay=false;}
+    if(timerApplied) saved.done=true;
+    if(!isNew&&ev?.repeat&&ev.repeat!=="none"){setPendingSave(saved);setShowRepeatSave(true);}
+    else onSave(saved);
+  };
+
+  // Push action buttons into Modal footer slot (mobile only)
+  useEffect(()=>{
+    if(!setFooter) return;
+    const showSave=!(isNew&&tab==="timer"&&!timerApplied);
+    setFooter(
+      <div style={{display:"flex",gap:8}}>
+        {!isNew&&<button onClick={()=>{if(form.repeat&&form.repeat!=="none"&&onRepeatDelete){setShowRepeatDel(true);}else onDelete(form.id);}} style={{flex:1,padding:"14px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
+        {showSave&&<button onClick={doSave} style={{flex:1,padding:"14px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:15,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
+      </div>
+    );
+  },[setFooter,isNew,tab,timerApplied,form,elapsed,hasTime]);
+
   // Duration tracking: null = custom (end was set independently)
   const DURATION_PRESETS=[30,60,90,120];
   const initDur=()=>{
@@ -1139,24 +1169,13 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     </div>}
 
     {/* Repeat delete is now handled via RepeatDeleteModal from the parent */}
-    <div style={{position:"sticky",bottom:0,background:"white",paddingTop:10,paddingBottom:"max(8px,env(safe-area-inset-bottom))",display:"flex",gap:8}}>
+    {!setFooter&&<div style={{display:"flex",gap:8,marginTop:18,paddingBottom:8}}>
       {!isNew&&<button onClick={()=>{
         if(form.repeat&&form.repeat!=="none"&&onRepeatDelete){setShowRepeatDel(true);}
         else onDelete(form.id);
       }} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
-      {!(isNew&&tab==="timer"&&!timerApplied)&&<button onClick={()=>{
-        if(!form.title.trim()) return;
-        const saved={...form,timerSecs:elapsed};
-        if(!hasTime){saved.startTime=null;saved.endTime=null;saved.allDay=false;}
-        if(timerApplied) saved.done=true;
-        if(!isNew&&ev?.repeat&&ev.repeat!=="none"){
-          setPendingSave(saved);
-          setShowRepeatSave(true);
-        } else {
-          onSave(saved);
-        }
-      }} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
-    </div>
+      {!(isNew&&tab==="timer"&&!timerApplied)&&<button onClick={doSave} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
+    </div>}
     <InlineRepeatDelete open={showRepeatDel} onClose={()=>setShowRepeatDel(false)} onRepeatDelete={key=>{setShowRepeatDel(false);onRepeatDelete&&onRepeatDelete(key);}}/>
     <InlineRepeatDelete
       open={showRepeatSave}
@@ -1303,7 +1322,7 @@ function MiniCalendarPicker({currentDate, onSelect, onClose}){
         <button onClick={()=>setCur(new Date(year,month+1,1))} style={{border:"none",background:"#f2f2f7",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:15,color:"#555",textAlign:"center"}}>›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4}}>
-        {WD.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:i===0||i===6?"#FF3B30":"#8e8e93",padding:"3px 0"}}>{d}</div>)}
+        {WD.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:i>=5?"#FF3B30":"#8e8e93",padding:"3px 0"}}>{d}</div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1}}>
         {cells.map((d,i)=>{
@@ -1864,7 +1883,7 @@ function MonthGrid({cells,events,today,getLb,setCur,setView}){
 
   return <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",height:"100%"}}>
     <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"0 8px 4px",flexShrink:0,borderBottom:"1px solid #f5f5f5"}}>
-      {WD.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i===0||i===6?"#FF3B30":"#8e8e93",padding:"4px 0"}}>{d}</div>)}
+      {WD.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i>=5?"#FF3B30":"#8e8e93",padding:"4px 0"}}>{d}</div>)}
     </div>
     <div ref={gridRef} style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gridTemplateRows:`repeat(${rows},1fr)`,padding:"0 8px",overflow:"hidden"}}>
       {cells.map((c,i)=>{
@@ -3122,6 +3141,21 @@ function FullscreenTimer({info, onDismiss}){
   </div>;
 }
 
+/* ══════ EVENT FORM MODAL WRAPPER ══════ */
+function EventFormModal({title,onClose,ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onTimerActive,initialDate,initialHour}){
+  const [footer,setFooter]=useState(null);
+  return <Modal title={title} onClose={onClose} footer={footer}>
+    <EventForm ev={ev} instanceDate={instanceDate} labels={labels} onSave={onSave} onDelete={onDelete} onRepeatDelete={onRepeatDelete} onClose={onClose} initialDate={initialDate} initialHour={initialHour} onTimerActive={onTimerActive} setFooter={setFooter}/>
+  </Modal>;
+}
+
+function LabelManagerModal({onClose,labels,initialLabelId,onSave}){
+  const [footer,setFooter]=useState(null);
+  return <Modal title="管理标签" onClose={onClose} width={520} footer={footer}>
+    <LabelManager labels={labels} initialLabelId={initialLabelId} onSave={onSave} setFooter={setFooter}/>
+  </Modal>;
+}
+
 /* ══════ APP ROOT ══════ */
 export default function App(){
   const [events,setEvents]=useStore("cfpx_ev",makeSamples());
@@ -3307,13 +3341,9 @@ export default function App(){
         </div>
       : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
     }
-    {modal?.t==="add"&&<Modal title="新建事项" onClose={()=>setModal(null)}>
-      <EventForm labels={labels} onSave={saveEv} onDelete={delEv} onClose={()=>setModal(null)} initialDate={modal.date} initialHour={modal.hour} onTimerActive={info=>setTimerOverlay(info)}/>
-    </Modal>}
-    {modal?.t==="edit"&&<Modal title="编辑事项" onClose={()=>setModal(null)}>
-      <EventForm ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onClose={()=>setModal(null)} onTimerActive={info=>setTimerOverlay(info)}/>
-    </Modal>}
-    {modal?.t==="labels"&&<Modal title="管理标签" onClose={()=>setModal(null)} width={520}><LabelManager labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/></Modal>}
+    {modal?.t==="add"&&<EventFormModal title="新建事项" onClose={()=>setModal(null)} labels={labels} onSave={saveEv} onDelete={delEv} onTimerActive={info=>setTimerOverlay(info)} initialDate={modal.date} initialHour={modal.hour}/>}
+    {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>setTimerOverlay(info)}/>}
+    {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
     {timerOverlay&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)}/>}
   </div>;
