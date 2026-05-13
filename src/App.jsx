@@ -96,8 +96,10 @@ const parseMins = s => { if(!s) return 0; const [h,m]=s.split(":").map(Number); 
 const fmtMins = m => { if(!m&&m!==0) return "—"; const h=Math.floor(Math.abs(m)/60),mn=Math.abs(m)%60; return h>0?(mn>0?`${h}h${mn}m`:`${h}h`):(mn+"m"); };
 const fmtSecs = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60; return h>0?`${pad(h)}:${pad(m)}:${pad(sc)}`:`${pad(m)}:${pad(sc)}`; };
 const daysInMon =(y,m)=>new Date(y,m+1,0).getDate();
-const WD = ["日","一","二","三","四","五","六"];
-const WDF = ["周日","周一","周二","周三","周四","周五","周六"];
+const WD = ["一","二","三","四","五","六","日"]; // Mon-first display
+const WDF = ["周一","周二","周三","周四","周五","周六","周日"]; // Mon-first display
+// Convert JS getDay() (0=Sun) to Mon-first index (0=Mon)
+const dowMon=(d)=>(d.getDay()+6)%7;
 const MONTHS= ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 
 /* ── holidays ── */
@@ -359,7 +361,7 @@ function ColorPicker({value,onChange}){
 function Modal({title,onClose,children,width=440,hideHeader=false}){
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,willChange:"opacity",transform:"translateZ(0)"}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{max-height:95vh!important;}}`}</style>
+    <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{border-radius:22px 22px 0 0!important;max-height:100vh!important;height:100vh!important;max-width:100%!important;}}`}</style>
     <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",padding:"20px 20px max(28px,env(safe-area-inset-bottom))",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0,transform:"translateZ(0)",willChange:"transform"}}>
       {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingBottom:12,borderBottom:"1px solid #f2f2f2"}}>
         <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
@@ -799,7 +801,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
   const hasTime=timeMode!=="none";
   const [tab,setTab]=useState(ev?._openTab||"info");
   const [running,setRunning]=useState(false);
-  const [elapsed,setElapsed]=useState(form.timerSecs||0);
+  const [elapsed,setElapsed]=useState(0); // always fresh; timerSecs is the previously-saved record
   const [labelLocked,setLabelLocked]=useState(!!ev); // manual selection locks auto-detect
   const [timerApplied,setTimerApplied]=useState(false);
   const [showRepeatDel,setShowRepeatDel]=useState(false);
@@ -1282,7 +1284,7 @@ function MiniCalendarPicker({currentDate, onSelect, onClose}){
   const today=new Date();
   const [cur,setCur]=useState(()=>{const d=new Date(currentDate+"T00:00:00");return new Date(d.getFullYear(),d.getMonth(),1);});
   const year=cur.getFullYear(),month=cur.getMonth();
-  const firstDow=new Date(year,month,1).getDay();
+  const firstDow=dowMon(new Date(year,month,1));
   const dim=daysInMon(year,month);
   const cells=[];
   for(let i=0;i<Math.ceil((firstDow+dim)/7)*7;i++){
@@ -1305,7 +1307,7 @@ function MiniCalendarPicker({currentDate, onSelect, onClose}){
           const ds=fmtDate(d);
           const isSel=ds===currentDate;
           const isT=isSameDay(d,today);
-          const isW=d.getDay()===0||d.getDay()===6;
+          const isW=dowMon(d)===5||dowMon(d)===6;
           return <div key={i} onClick={()=>{onSelect(ds);onClose();}}
             style={{display:"flex",alignItems:"center",justifyContent:"center",height:32,borderRadius:8,cursor:"pointer",
               background:isSel?"#333":isT?"#f2f2f7":"transparent",
@@ -1785,9 +1787,9 @@ function Timeline({days,events,labels,onEventClick,onSlotClick,onDayHeaderClick,
     <div style={{display:"grid",gridTemplateColumns:COL,borderBottom:anyAllDay?"none":"1.5px solid #ebebeb",flexShrink:0}}>
       <div style={{width:44}}/>
       {days.map((d,i)=>{
-        const isT=isSameDay(d,today);const isW=d.getDay()===0||d.getDay()===6;const hol=HOLIDAYS[fmtDate(d)];
+        const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
         return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"5px 0 3px",cursor:onDayHeaderClick?"pointer":"default"}} onClick={onDayHeaderClick?()=>onDayHeaderClick(d):undefined}>
-          <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px"}}>{WD[d.getDay()]}</div>
+          <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px"}}>{WD[dowMon(d)]}</div>
           <div style={{width:28,height:28,borderRadius:"50%",marginTop:2,background:isT?"#333":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
             <span style={{fontSize:13,fontWeight:isT?700:400,color:isT?"white":isW?"#FF3B30":"#111"}}>{d.getDate()}</span>
           </div>
@@ -1923,7 +1925,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
 
   const lbl=useMemo(()=>{
     if(view==="month") return `${MONTHS[cur.getMonth()]} ${cur.getFullYear()}`;
-    if(view==="week"){const s=new Date(cur);s.setDate(s.getDate()-s.getDay());const e=addDays(s,6);return s.getMonth()===e.getMonth()?`${MONTHS[s.getMonth()]} ${s.getFullYear()}`:MONTHS[s.getMonth()]+" — "+MONTHS[e.getMonth()];}
+    if(view==="week"){const s=new Date(cur);s.setDate(s.getDate()-dowMon(s));const e=addDays(s,6);return s.getMonth()===e.getMonth()?`${MONTHS[s.getMonth()]} ${s.getFullYear()}`:MONTHS[s.getMonth()]+" — "+MONTHS[e.getMonth()];}
     return `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())}`;
   },[view,cur]);
 
@@ -2011,12 +2013,12 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
   const renderPanel=(panelCur)=>{
     if(view==="month"){
       const y=panelCur.getFullYear(),m=panelCur.getMonth();
-      const first=new Date(y,m,1);const pd=first.getDay();const total=pd+daysInMon(y,m);
+      const first=new Date(y,m,1);const pd=dowMon(first);const total=pd+daysInMon(y,m);
       const cells=[];for(let i=0;i<Math.ceil(total/7)*7;i++){const d=new Date(y,m,1-pd+i);cells.push({d,inMonth:d.getMonth()===m});}
       return <MonthGrid cells={cells} events={filteredEvents} today={today} getLb={getLb} setCur={setCur} setView={setView}/>;
     }
     if(view==="week"){
-      const s=new Date(panelCur);s.setDate(s.getDate()-s.getDay());
+      const s=new Date(panelCur);s.setDate(s.getDate()-dowMon(s));
       const wDays=Array.from({length:7},(_,i)=>addDays(s,i));
       return <Timeline days={wDays} events={filteredEvents} labels={labels} onEventClick={onOpen} onSlotClick={(ds,h)=>onAdd(ds,h)} onDayHeaderClick={d=>{setCur(d);setView("day");}}/>;
     }
@@ -2050,7 +2052,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
   // For week/day: render only the day-header strip (no scroll), to be placed above shared scroll area
   const renderHeaderStrip=(panelCur)=>{
     if(view==="week"){
-      const s=new Date(panelCur);s.setDate(s.getDate()-s.getDay());
+      const s=new Date(panelCur);s.setDate(s.getDate()-dowMon(s));
       const wDays=Array.from({length:7},(_,i)=>addDays(s,i));
       const COL=`44px repeat(7,minmax(0,1fr))`;
       const anyAD=wDays.some(d=>getForDate(filteredEvents,fmtDate(d),{includeUnscheduled:false}).some(e=>e.allDay));
@@ -2058,9 +2060,9 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
         <div style={{display:"grid",gridTemplateColumns:COL,borderBottom:anyAD?"none":"1.5px solid #ebebeb"}}>
           <div style={{width:44}}/>
           {wDays.map((d,i)=>{
-            const isT=isSameDay(d,today);const isW=d.getDay()===0||d.getDay()===6;const hol=HOLIDAYS[fmtDate(d)];
+            const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
             return <div key={i} style={{textAlign:"center",padding:"5px 0 3px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center"}} onClick={()=>{setCur(d);setView("day");}}>
-              <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px",width:"100%",textAlign:"center"}}>{WD[d.getDay()]}</div>
+              <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px",width:"100%",textAlign:"center"}}>{WD[dowMon(d)]}</div>
               <div style={{width:28,height:28,borderRadius:"50%",marginTop:2,background:isT?"#333":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <span style={{fontSize:13,fontWeight:isT?700:400,color:isT?"white":isW?"#FF3B30":"#111"}}>{d.getDate()}</span>
               </div>
@@ -2082,13 +2084,13 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
       </div>;
     }
     // day view
-    const d=panelCur;const isT=isSameDay(d,today);const isW=d.getDay()===0||d.getDay()===6;const hol=HOLIDAYS[fmtDate(d)];
+    const d=panelCur;const isT=isSameDay(d,today);const isW=dowMon(d)===5||dowMon(d)===6;const hol=HOLIDAYS[fmtDate(d)];
     const ds=fmtDate(d);const adEvs=getForDate(filteredEvents,ds,{includeUnscheduled:false}).filter(e=>e.allDay);
     return <div>
       <div style={{display:"grid",gridTemplateColumns:"44px 1fr",borderBottom:adEvs.length>0?"none":"1.5px solid #ebebeb"}}>
         <div style={{width:44}}/>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"5px 0 3px"}}>
-          <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px"}}>{WD[d.getDay()]}</div>
+          <div style={{fontSize:10,fontWeight:600,color:isW?"#FF3B30":"#8e8e93",lineHeight:"14px"}}>{WD[dowMon(d)]}</div>
           <div style={{width:28,height:28,borderRadius:"50%",marginTop:2,background:isT?"#333":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
             <span style={{fontSize:13,fontWeight:isT?700:400,color:isT?"white":isW?"#FF3B30":"#111"}}>{d.getDate()}</span>
           </div>
@@ -2109,7 +2111,7 @@ const CalendarPage=React.memo(function CalendarPage({events,labels,onOpen,onAdd}
   // For week/day: render only the scrollable body (no header, no own scroll)
   const renderBodyPanel=(panelCur)=>{
     if(view==="week"){
-      const s=new Date(panelCur);s.setDate(s.getDate()-s.getDay());
+      const s=new Date(panelCur);s.setDate(s.getDate()-dowMon(s));
       const wDays=Array.from({length:7},(_,i)=>addDays(s,i));
       return <TimelineBody days={wDays} events={filteredEvents} labels={labels} onEventClick={onOpen} onSlotClick={(ds,h)=>onAdd(ds,h)} today={today}/>;
     }
@@ -2212,7 +2214,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   const {start,end,rLabel}=useMemo(()=>{
     const now=new Date();
     if(period==="day"){const d=addDays(now,-offset);return{start:fmtDate(d),end:fmtDate(d),rLabel:fmtDate(d)};}
-    if(period==="week"){const s=new Date(now);s.setDate(s.getDate()-s.getDay()-offset*7);const e=addDays(s,6);return{start:fmtDate(s),end:fmtDate(e),rLabel:`第${Math.ceil((s.getDate())/7)}周`};}
+    if(period==="week"){const s=new Date(now);s.setDate(s.getDate()-dowMon(s)-offset*7);const e=addDays(s,6);return{start:fmtDate(s),end:fmtDate(e),rLabel:`第${Math.ceil((s.getDate())/7)}周`};}
     if(period==="year"){const y=now.getFullYear()-offset;return{start:`${y}-01-01`,end:`${y}-12-31`,rLabel:`${y}年`};}
     const base=new Date(now.getFullYear(),now.getMonth()-offset,1);const e2=new Date(base.getFullYear(),base.getMonth()+1,0);return{start:fmtDate(base),end:fmtDate(e2),rLabel:`${MONTHS[base.getMonth()]} ${base.getFullYear()}`};
   },[period,offset]);
@@ -2224,7 +2226,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
   const {prevStart,prevEnd}=useMemo(()=>{
     const now=new Date();
     if(period==="day"){const d=addDays(now,-(offset+1));return{prevStart:fmtDate(d),prevEnd:fmtDate(d)};}
-    if(period==="week"){const s=new Date(now);s.setDate(s.getDate()-s.getDay()-(offset+1)*7);return{prevStart:fmtDate(s),prevEnd:fmtDate(addDays(s,6))};}
+    if(period==="week"){const s=new Date(now);s.setDate(s.getDate()-dowMon(s)-(offset+1)*7);return{prevStart:fmtDate(s),prevEnd:fmtDate(addDays(s,6))};}
     if(period==="year"){const y=now.getFullYear()-(offset+1);return{prevStart:`${y}-01-01`,prevEnd:`${y}-12-31`};}
     const base=new Date(now.getFullYear(),now.getMonth()-(offset+1),1);const e2=new Date(base.getFullYear(),base.getMonth()+1,0);return{prevStart:fmtDate(base),prevEnd:fmtDate(e2)};
   },[period,offset]);
@@ -2275,7 +2277,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
     const arr=[];
     let startD;
     if(period==="day"){startD=addDays(new Date(),-offset);}
-    else if(period==="week"){const s=new Date(new Date());s.setDate(s.getDate()-s.getDay()-offset*7);startD=s;}
+    else if(period==="week"){const s=new Date(new Date());s.setDate(s.getDate()-dowMon(s)-offset*7);startD=s;}
     else if(period==="month"){startD=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);}
     else{startD=new Date(new Date().getFullYear()-offset,0,1);}
     const days=period==="year"?365:period==="month"?new Date(startD.getFullYear(),startD.getMonth()+1,0).getDate():period==="week"?7:1;
@@ -2380,7 +2382,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
     }
     if(period==="week"){
       // 7 days x 24 hours grid — rows=days, cols=hours
-      const weekStart=new Date(new Date());weekStart.setDate(weekStart.getDate()-weekStart.getDay()-offset*7);
+      const weekStart=new Date(new Date());weekStart.setDate(weekStart.getDate()-dowMon(weekStart)-offset*7);
       const cells=[];
       for(let day=0;day<7;day++){
         const d=addDays(weekStart,day);const ds=fmtDate(d);
@@ -2408,7 +2410,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       // days of month: 7 cols (weeks), rows = weeks
       const base=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);
       const daysInMonth=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
-      const firstDow=base.getDay();
+      const firstDow=dowMon(base);
       const totalCells=Math.ceil((firstDow+daysInMonth)/7)*7;
       const cells=[];
       for(let i=0;i<totalCells;i++){
@@ -2451,9 +2453,12 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       <div style={{fontSize:14,fontWeight:800,color:"#111",marginBottom:12}}>环状考察</div>
       <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><Donut/></div>
       {lblStats.map(lb=>{
-        const pct=(lb.total/grandSafe*100).toFixed(1);const isExp=expId===lb.id;
+        const pct=(lb.total/grandSafe*100).toFixed(1);
+        const isExp=expId===lb.id;
+        const hasChildren=(lb.children||[]).length>0;
         return <div key={lb.id}>
-          <div onClick={()=>setExpId(p=>p===lb.id?null:lb.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",cursor:"pointer",borderBottom:"1px solid #f8f8f8"}}>
+          {/* Parent row — click to toggle children+unclassified */}
+          <div onClick={()=>{setExpId(p=>p===lb.id?null:lb.id);setExpChildId(null);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",cursor:"pointer",borderBottom:"1px solid #f8f8f8"}}>
             <div style={{width:9,height:9,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
             <span style={{fontSize:13,fontWeight:800,color:"#111",minWidth:44}}>{pct}%</span>
             <span style={{fontSize:14,flex:1,fontWeight:600}}>{lb.emoji} {lb.name}</span>
@@ -2461,44 +2466,47 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
             <span style={{fontSize:12,color:"#8e8e93",marginLeft:6}}>{fmtMins(lb.total)}</span>
             <span style={{fontSize:11,color:"#ccc",marginLeft:3}}>{isExp?"▲":"▼"}</span>
           </div>
-          {(lb.children||[]).map(ch=><div key={ch.id}>
-            <div onClick={()=>{setExpChildId(p=>p===ch.id?null:ch.id);setExpId(null);}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0 5px 20px",borderBottom:"1px solid #f8f8f8",cursor:"pointer"}}>
-            <span style={{fontSize:11,color:"#aaa",fontWeight:700}}>#</span>
-            <span style={{fontSize:12,flex:1,color:"#666"}}>{ch.emoji} {ch.name}</span>
-            <ChgBadge cur={ch.mins} prev={ch.prevMins||0}/>
-            <span style={{fontSize:11,color:"#8e8e93",marginLeft:6}}>{fmtMins(ch.mins)}</span>
-            <span style={{fontSize:11,color:"#ccc",marginLeft:3}}>{expChildId===ch.id?"▲":"▼"}</span>
-          </div>
-          {expChildId===ch.id&&<div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6,marginLeft:20}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>子标签任务 {ch.evs.length}个</div>
-            {ch.evs.length===0&&<div style={{fontSize:12,color:"#c0c0c0",padding:"4px 0"}}>暂无任务</div>}
-            {ch.evs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:ch.color||lb.color,flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
-                <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
-              </div>
-              <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
-            </div>)}
-            {ch.evs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {ch.evs.length-15} 更多</div>}
-          </div>}
-          </div>)}
+          {/* Expanded: show children chips + unclassified tasks */}
           {isExp&&(()=>{
-            // Only show tasks directly under this parent label, NOT classified under any child label
             const childIds=new Set((lb.children||[]).map(c=>c.id));
             const parentOnlyEvs=lb.evs.filter(ev=>!childIds.has(ev.labelId));
-            return <div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>直属任务 {parentOnlyEvs.length}个</div>
-              {parentOnlyEvs.length===0&&<div style={{fontSize:12,color:"#c0c0c0",padding:"4px 0"}}>所有任务已分类到子标签中</div>}
-              {parentOnlyEvs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
-                  <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
+            return <div style={{paddingBottom:4}}>
+              {/* Child label rows */}
+              {(lb.children||[]).map(ch=><div key={ch.id}>
+                <div onClick={e=>{e.stopPropagation();setExpChildId(p=>p===ch.id?null:ch.id);}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0 5px 20px",borderBottom:"1px solid #f8f8f8",cursor:"pointer"}}>
+                  <span style={{fontSize:11,color:"#aaa",fontWeight:700}}>#</span>
+                  <span style={{fontSize:12,flex:1,color:"#666"}}>{ch.emoji} {ch.name}</span>
+                  <ChgBadge cur={ch.mins} prev={ch.prevMins||0}/>
+                  <span style={{fontSize:11,color:"#8e8e93",marginLeft:6}}>{fmtMins(ch.mins)}</span>
+                  <span style={{fontSize:11,color:"#ccc",marginLeft:3}}>{expChildId===ch.id?"▲":"▼"}</span>
                 </div>
-                <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
+                {expChildId===ch.id&&<div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6,marginLeft:20}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>子标签任务 {ch.evs.length}个</div>
+                  {ch.evs.length===0&&<div style={{fontSize:12,color:"#c0c0c0",padding:"4px 0"}}>暂无任务</div>}
+                  {ch.evs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:ch.color||lb.color,flexShrink:0}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
+                      <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
+                    </div>
+                    <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
+                  </div>)}
+                  {ch.evs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {ch.evs.length-15} 更多</div>}
+                </div>}
               </div>)}
-              {parentOnlyEvs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {parentOnlyEvs.length-15} 更多</div>}
+              {/* Unclassified tasks directly under parent */}
+              {parentOnlyEvs.length>0&&<div style={{background:"#fafafa",borderRadius:12,padding:"8px 10px",marginBottom:6,marginTop:hasChildren?4:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:7}}>{hasChildren?"未分类任务":"直属任务"} {parentOnlyEvs.length}个</div>
+                {parentOnlyEvs.slice(0,15).map(ev=><div key={ev.id+(ev._d||"")} onClick={()=>setDetEv(ev)} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:"1px solid #f0f0f0",cursor:"pointer"}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:lb.color,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{ev.title}</div>
+                    <div style={{fontSize:11,color:"#8e8e93"}}>{ev._d||ev.date} {ev.allDay?"全天":(ev.startTime?(ev.startTime+(ev.endTime?` → ${ev.endTime}`:"")):"尚未安排")}</div>
+                  </div>
+                  <span style={{fontSize:11,color:"#8e8e93",flexShrink:0}}>{fmtMins(getDur(ev))}</span>
+                </div>)}
+                {parentOnlyEvs.length>15&&<div style={{fontSize:11,color:"#8e8e93",textAlign:"center",padding:"6px 0"}}>+ {parentOnlyEvs.length-15} 更多</div>}
+              </div>}
             </div>;
           })()}
         </div>;
@@ -2574,7 +2582,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
           const dayCells=heatGrid.cells.filter(c=>c.day===day);
           const dayLabel=dayCells[0]?.d?new Date(dayCells[0].d+"T00:00:00"):null;
           return <div key={day} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
-            <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{dayLabel?WDF[dayLabel.getDay()]:WDF[day]}</div>
+            <div style={{width:22,fontSize:9,color:"#8e8e93",flexShrink:0,textAlign:"right",paddingRight:2}}>{dayLabel?WDF[dowMon(dayLabel)]:WDF[day]}</div>
             {dayCells.map((cell,i)=>{
               const bg=heatCellColor(cell.domLabel,cell.mins,"week");
               return <div key={i} title={`${cell.d} ${pad(cell.h)}:00 ${fmtMins(cell.mins)}`} style={{width:heatGrid.cellSize,height:heatGrid.cellSize,borderRadius:3,background:bg,flexShrink:0}}/>;
@@ -2709,7 +2717,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
       const chartDays=[];
       let cStart;
       if(period==="day"){cStart=addDays(new Date(),-offset);}
-      else if(period==="week"){const s=new Date();s.setDate(s.getDate()-s.getDay()-offset*7);cStart=s;}
+      else if(period==="week"){const s=new Date();s.setDate(s.getDate()-dowMon(s)-offset*7);cStart=s;}
       else if(period==="month"){cStart=new Date(new Date().getFullYear(),new Date().getMonth()-offset,1);}
       else{cStart=new Date(new Date().getFullYear()-offset,0,1);}
       const cDays=period==="year"?365:period==="month"?new Date(cStart.getFullYear(),cStart.getMonth()+1,0).getDate():period==="week"?7:1;
@@ -2733,7 +2741,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
 
       const hourData=(period==="day")?Array.from({length:24},(_,h)=>{
         const ds=fmtDate(cStart);
-        const dayEvs=filtEvs(getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime));
+        const dayEvs=filtEvs(getForDate(events,ds,{includeUnscheduled:false}).filter(e=>isDoneOn(e,ds)&&e.startTime&&!e.allDay));
         const hStart=h*60,hEnd=(h+1)*60;
         const hEvs=dayEvs.filter(e=>{
           const eStart=parseMins(e.startTime);
@@ -2741,8 +2749,21 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
           const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
           return eStart<hEnd&&eEndAdj>hStart;
         });
-        const byLb={};hEvs.forEach(e=>{byLb[e.labelId]=(byLb[e.labelId]||0)+getDur(e);});
-        const total=hEvs.reduce((s,e)=>s+getDur(e),0);
+        // For each event, compute actual overlap with this hour (in minutes)
+        const byLb={};
+        let total=0;
+        hEvs.forEach(e=>{
+          const eStart=parseMins(e.startTime);
+          const eEnd=e.endTime?parseMins(e.endTime):eStart+60;
+          const eEndAdj=eEnd<=eStart?eEnd+1440:eEnd;
+          const overlapStart=Math.max(eStart,hStart);
+          const overlapEnd=Math.min(eEndAdj,hEnd);
+          const overlap=Math.max(0,overlapEnd-overlapStart);
+          byLb[e.labelId]=(byLb[e.labelId]||0)+overlap;
+          total+=overlap;
+        });
+        // Cap total at 60 (a single hour)
+        total=Math.min(60,total);
         return{label:`${pad(h)}`,total,byLb,ds};
       }):null;
 
@@ -2759,7 +2780,7 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
         }
         return barData.map(({ds,total,byLb})=>{
           const d=new Date(ds+"T00:00:00");
-          const label=period==="week"?WDF[d.getDay()]:period==="month"?`${d.getDate()}`:`${pad(d.getHours())}:00`;
+          const label=period==="week"?WDF[dowMon(d)]:period==="month"?`${d.getDate()}`:`${pad(d.getHours())}:00`;
           return{label,total,byLb,ds};
         });
       })();
@@ -3123,7 +3144,19 @@ export default function App(){
 
   const saveEv=ev=>{
     const tags=autoTag(ev,labels);
-    const fin={...ev,autoTags:tags};
+    let fin={...ev,autoTags:tags};
+    // Auto-mark done if the task's time is entirely in the past
+    if(!fin.done&&!fin.repeat||fin.repeat==="none"){
+      const now=new Date();
+      const nowMins=now.getHours()*60+now.getMinutes();
+      const todayDs=todayStr();
+      if(fin.date===todayDs&&fin.startTime&&!fin.allDay){
+        const checkMins=fin.endTime?parseMins(fin.endTime):parseMins(fin.startTime);
+        if(checkMins<nowMins) fin={...fin,done:true};
+      } else if(fin.date<todayDs&&!fin.allDay){
+        fin={...fin,done:true};
+      }
+    }
     const key=fin._repeatSaveKey;
     delete fin._repeatSaveKey;
     // Not a repeat-scope save — just upsert normally
