@@ -359,50 +359,29 @@ function ColorPicker({value,onChange}){
 
 /* ══════ MODAL ══════ */
 function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}
+  const [mobile,setMobile]=useState(()=>window.innerWidth<480);
+  useEffect(()=>{
+    const fn=()=>setMobile(window.innerWidth<480);
+    window.addEventListener("resize",fn);
+    return()=>window.removeEventListener("resize",fn);
+  },[]);
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:0}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <style>{`
-      .komu-modal-sheet{
-        background:white;
-        border-radius:22px 22px 0 0;
-        width:100%;
-        max-width:${width}px;
-        max-height:88vh;
-        display:flex;
-        flex-direction:column;
-        box-shadow:0 -4px 40px rgba(0,0,0,0.18);
-        flex-shrink:0;
-      }
-      @media(min-width:480px){
-        .komu-modal-sheet{
-          border-radius:22px;
-          margin:16px;
-          max-height:92vh;
-          align-self:center;
-        }
-      }
-      @media(max-width:479px){
-        .komu-modal-sheet{
-          border-radius:22px 22px 0 0;
-          height:100dvh;
-          height:100vh;
-          max-height:100vh;
-          max-width:100%;
-        }
-      }
-      .modal-btn-back{ display:none; }
-      .modal-btn-close{ display:flex; }
-      @media(max-width:479px){
-        .modal-btn-back{ display:flex; }
-        .modal-btn-close{ display:none; }
-      }
-    `}</style>
-    <div className="komu-modal-sheet">
+    <style>{`.komu-modal-sheet{background:white;width:100%;display:flex;flex-direction:column;box-shadow:0 -4px 40px rgba(0,0,0,0.18);flex-shrink:0;}`}</style>
+    <div className="komu-modal-sheet" style={{
+      borderRadius: mobile?"22px 22px 0 0":"22px",
+      maxWidth: mobile?"100%":`${width}px`,
+      maxHeight: mobile?"100dvh":"92vh",
+      height: mobile?"100dvh":undefined,
+    }}>
       {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
-        <style>{`.km-back{display:none!important}.km-close{display:flex!important}@media(max-width:479px){.km-back{display:flex!important;alignItems:center}.km-close{display:none!important}}`}</style>
-        <button className="km-back" onClick={onClose} style={{border:"none",background:"none",padding:"0 10px 0 0",cursor:"pointer",fontSize:32,color:"#333",lineHeight:"1",flexShrink:0,marginLeft:-6}}>‹</button>
+        {mobile
+          ? <button onClick={onClose} style={{display:"flex",alignItems:"center",border:"none",background:"none",padding:"0 10px 0 0",cursor:"pointer",fontSize:32,color:"#333",lineHeight:1,flexShrink:0,marginLeft:-6}}>‹</button>
+          : null}
         <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
-        <button className="km-close" onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",flexShrink:0}}>✕</button>
+        {!mobile
+          ? <button onClick={onClose} style={{display:"flex",alignItems:"center",justifyContent:"center",border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",flexShrink:0}}>✕</button>
+          : null}
       </div>}
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 0",minHeight:0}}>
         {children}
