@@ -369,7 +369,7 @@ function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <style>{`.komu-modal-sheet{background:white;width:100%;display:flex;flex-direction:column;box-shadow:0 -4px 40px rgba(0,0,0,0.18);flex-shrink:0;}`}</style>
     <div className="komu-modal-sheet" style={{
-      borderRadius: mobile?"22px 22px 0 0":"22px",
+      borderRadius: mobile?"0":"22px",
       maxWidth: mobile?"100%":`${width}px`,
       maxHeight: mobile?"100dvh":"92vh",
       height: mobile?"100dvh":undefined,
