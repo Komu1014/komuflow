@@ -652,7 +652,7 @@ function LabelManager({labels,onSave,initialLabelId,setFooter}){
     const lb = list.find(l=>l.id===selLabel);
     if(!lb) { setSelLabel(null); return null; }
     return <div>
-      <button onClick={()=>{setSelLabel(null);setEd(null);}} style={{border:"none",background:"none",color:"#555",fontSize:13,cursor:"pointer",marginBottom:12,display:"flex",alignItems:"center",gap:4}}>‹ 返回</button>
+      <button onClick={()=>{setSelLabel(null);setEd(null);}} style={{border:"none",background:"none",color:"#333",fontSize:22,cursor:"pointer",marginBottom:12,display:"flex",alignItems:"center",gap:2,padding:"4px 0",fontWeight:400,lineHeight:1}}>‹ <span style={{fontSize:15,fontWeight:600}}>返回</span></button>
       <div onClick={()=>{ if(!ed||ed.id!==lb.id) setEd({...lb,children:[...(lb.children||[])],isNew:false}); else setEd(null); setCed(null); }}
         style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:ed?.id===lb.id?"#f0f7ff":"#f8f8f8",borderRadius:12,cursor:"pointer",marginBottom:4,border:ed?.id===lb.id?"1.5px solid #555":"1.5px solid transparent"}}>
         <div style={{width:10,height:10,borderRadius:"50%",background:lb.color}}/>
