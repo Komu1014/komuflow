@@ -359,21 +359,50 @@ function ColorPicker({value,onChange}){
 
 /* ══════ MODAL ══════ */
 function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
-  const isMobile=typeof window!=="undefined"&&window.innerWidth<480;
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.36)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}
     onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <style>{`@media(min-height:600px) and (min-width:480px){.komu-modal-sheet{border-radius:22px!important;margin:16px!important;max-height:92vh!important;align-self:center!important;}}@media(max-width:479px){.komu-modal-sheet{border-radius:0!important;height:100dvh!important;height:100vh!important;max-height:100vh!important;max-width:100%!important;}}`}</style>
-    <div className="komu-modal-sheet" style={{background:"white",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:width,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -4px 40px rgba(0,0,0,0.18)",flexShrink:0}}>
-      {!hideHeader&&title&&(isMobile
-        ? <div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
-            <button onClick={onClose} style={{border:"none",background:"none",padding:"0 14px 0 0",cursor:"pointer",fontSize:24,color:"#333",lineHeight:1,flexShrink:0,marginLeft:-4}}>‹</button>
-            <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
-          </div>
-        : <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
-            <span style={{fontSize:17,fontWeight:700,color:"#111"}}>{title}</span>
-            <button onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",textAlign:"center"}}>✕</button>
-          </div>
-      )}
+    <style>{`
+      .komu-modal-sheet{
+        background:white;
+        border-radius:22px 22px 0 0;
+        width:100%;
+        max-width:${width}px;
+        max-height:88vh;
+        display:flex;
+        flex-direction:column;
+        box-shadow:0 -4px 40px rgba(0,0,0,0.18);
+        flex-shrink:0;
+      }
+      @media(min-width:480px){
+        .komu-modal-sheet{
+          border-radius:22px;
+          margin:16px;
+          max-height:92vh;
+          align-self:center;
+        }
+      }
+      @media(max-width:479px){
+        .komu-modal-sheet{
+          border-radius:22px 22px 0 0;
+          height:100dvh;
+          height:100vh;
+          max-height:100vh;
+          max-width:100%;
+        }
+      }
+      .modal-btn-back{ display:none; }
+      .modal-btn-close{ display:flex; }
+      @media(max-width:479px){
+        .modal-btn-back{ display:flex; }
+        .modal-btn-close{ display:none; }
+      }
+    `}</style>
+    <div className="komu-modal-sheet">
+      {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
+        <button className="modal-btn-back" onClick={onClose} style={{border:"none",background:"none",padding:"0 10px 0 0",cursor:"pointer",fontSize:28,color:"#333",lineHeight:1,flexShrink:0,marginLeft:-6,alignItems:"center",justifyContent:"center"}}>‹</button>
+        <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
+        <button className="modal-btn-close" onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+      </div>}
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 0",minHeight:0}}>
         {children}
       </div>
@@ -974,7 +1003,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     }
     const endM=(startM+elapsedMins)%1440;
     const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
-    const saved={...form,timerSecs:secs,startTime,endTime};
+    const saved={...form,timerSecs:secs,startTime,endTime,done:false,_skipAutoDone:true};
     if(!saved.title.trim()) saved.title="未命名任务";
     return saved;
   };
@@ -2858,13 +2887,36 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
               const y=H*(1-f)+4;
               return <line key={f} x1={40} x2={svgW} y1={y} y2={y} stroke="#f0f0f0" strokeWidth={1}/>;
             })}
-            {/* Overlapping bars — each bar is the total (not stacked), colored by filter state */}
+            {/* Stacked bars — each segment colored by its label */}
             {aggData.map((d,i)=>{
               const x=40+i*W_ITEM;
-              const bh=(d.total/maxVal)*H;
-              if(!bh) return null;
-              return <rect key={i} x={x+1} y={H+4-bh} width={Math.max(2,W_ITEM-2)} height={bh}
-                fill={barColor} opacity={0.72} rx={2}/>;
+              if(!d.total) return null;
+              if(chartSingleLb||chartIsAll){
+                // Single label or all: simple bar
+                const bh=(d.total/maxVal)*H;
+                // Color each bar by dominant label if "all"
+                const domLbId=Object.entries(d.byLb).sort((a,b)=>b[1]-a[1])[0]?.[0];
+                const col=chartIsAll?(domLbId?((flat.find(l=>l.id===domLbId)||{}).color||"#8e8e93"):"#8e8e93"):barColor;
+                return <rect key={i} x={x+1} y={H+4-bh} width={Math.max(2,W_ITEM-2)} height={bh}
+                  fill={col} opacity={0.72} rx={2}/>;
+              }
+              // Multi-label: stacked segments
+              const segs=chartLabelIds.map(lid=>{
+                const childIds=new Set();
+                const parentLb=labels.find(l=>l.id===lid);
+                if(parentLb)(parentLb.children||[]).forEach(c=>childIds.add(c.id));
+                let mins=d.byLb[lid]||0;
+                childIds.forEach(cid=>{mins+=(d.byLb[cid]||0);});
+                const col=(flat.find(l=>l.id===lid)||{}).color||"#8e8e93";
+                return{mins,col};
+              }).filter(s=>s.mins>0);
+              let yOff=H+4;
+              return <g key={i}>{segs.map((seg,si)=>{
+                const bh=(seg.mins/maxVal)*H;
+                yOff-=bh;
+                return <rect key={si} x={x+1} y={yOff} width={Math.max(2,W_ITEM-2)} height={bh}
+                  fill={seg.col} opacity={0.8} rx={si===segs.length-1?2:0}/>;
+              })}</g>;
             })}
             {/* Line overlay — actual totals */}
             <polyline
@@ -2889,10 +2941,12 @@ const StatsPage=React.memo(function StatsPage({events,labels,onOpen}){
           </svg>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6,alignItems:"center"}}>
-          <div style={{width:12,height:12,borderRadius:3,background:barColor,opacity:0.72,flexShrink:0}}/>
-          <span style={{fontSize:10,color:"#666"}}>{chartIsAll?"全部标签":chartSingleLb?`${chartSingleLb.emoji} ${chartSingleLb.name}`:`${chartLabelIds.length}个标签`}</span>
+          {(!chartIsAll&&chartLabelIds.length>1)
+            ? chartLabelIds.map(lid=>{const lb=flat.find(l=>l.id===lid);if(!lb)return null;return<div key={lid} style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:10,height:10,borderRadius:2,background:lb.color,flexShrink:0}}/><span style={{fontSize:10,color:"#666"}}>{lb.emoji} {lb.name}</span></div>;})
+            : <><div style={{width:12,height:12,borderRadius:3,background:barColor,opacity:0.72,flexShrink:0}}/><span style={{fontSize:10,color:"#666"}}>{chartIsAll?"全部标签":chartSingleLb?`${chartSingleLb.emoji} ${chartSingleLb.name}`:`${chartLabelIds.length}个标签`}</span></>
+          }
           <div style={{display:"flex",alignItems:"center",gap:4}}>
-            <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={lineColor} strokeWidth={2}/><circle cx={8} cy={4} r={2} fill={lineColor}/></svg>
+            <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={lineColor} strokeWidth={2}/></svg>
             <span style={{fontSize:10,color:"#666"}}>实际时长</span>
           </div>
         </div>
@@ -3184,7 +3238,7 @@ export default function App(){
     const tags=autoTag(ev,labels);
     let fin={...ev,autoTags:tags};
     // Auto-mark done if the task's time is entirely in the past
-    if(!fin.done&&!fin.repeat||fin.repeat==="none"){
+    if(!fin.done&&!fin._skipAutoDone&&(!fin.repeat||fin.repeat==="none")){
       const now=new Date();
       const nowMins=now.getHours()*60+now.getMinutes();
       const todayDs=todayStr();
@@ -3197,6 +3251,7 @@ export default function App(){
     }
     const key=fin._repeatSaveKey;
     delete fin._repeatSaveKey;
+    delete fin._skipAutoDone;
     // Not a repeat-scope save — just upsert normally
     if(!key){
       setEvents(p=>p.some(e=>e.id===fin.id)?p.map(e=>e.id===fin.id?fin:e):[...p,fin]);
