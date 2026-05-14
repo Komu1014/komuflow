@@ -399,9 +399,10 @@ function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
     `}</style>
     <div className="komu-modal-sheet">
       {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
-        <button className="modal-btn-back" onClick={onClose} style={{border:"none",background:"none",padding:"0 10px 0 0",cursor:"pointer",fontSize:28,color:"#333",lineHeight:1,flexShrink:0,marginLeft:-6,alignItems:"center",justifyContent:"center"}}>‹</button>
+        <style>{`.km-back{display:none!important}.km-close{display:flex!important}@media(max-width:479px){.km-back{display:flex!important;alignItems:center}.km-close{display:none!important}}`}</style>
+        <button className="km-back" onClick={onClose} style={{border:"none",background:"none",padding:"0 10px 0 0",cursor:"pointer",fontSize:32,color:"#333",lineHeight:"1",flexShrink:0,marginLeft:-6}}>‹</button>
         <span style={{fontSize:17,fontWeight:700,color:"#111",flex:1}}>{title}</span>
-        <button className="modal-btn-close" onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+        <button className="km-close" onClick={onClose} style={{border:"none",background:"#f2f2f7",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:"#666",flexShrink:0}}>✕</button>
       </div>}
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 0",minHeight:0}}>
         {children}
