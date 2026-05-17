@@ -399,13 +399,13 @@ function TimeScrollPicker({value, onChange, label, compact, minMins}){
   const hourRef = useRef();
   const minRef = useRef();
   const hours = Array.from({length:24},(_,i)=>i);
-  const mins = Array.from({length:12},(_,i)=>i*5);
+  const mins = Array.from({length:60},(_,i)=>i);
   const ITEM_H = compact ? 28 : 36;
 
   useEffect(()=>{
     const id=requestAnimationFrame(()=>{
       if(hourRef.current) hourRef.current.scrollTop = h * ITEM_H;
-      if(minRef.current) minRef.current.scrollTop = Math.floor(m/5) * ITEM_H;
+      if(minRef.current) minRef.current.scrollTop = m * ITEM_H;
     });
     return()=>cancelAnimationFrame(id);
   },[]);
@@ -436,11 +436,10 @@ function TimeScrollPicker({value, onChange, label, compact, minMins}){
   };
   const onMinScroll = e => {
     const idx = Math.round(e.target.scrollTop / ITEM_H);
-    let newM = (Math.min(11, Math.max(0, idx))) * 5;
+    let newM = Math.min(59, Math.max(0, idx));
     if(minMins!=null && h*60+newM < minMins && h*60+newM>=0){
       newM=minMins%60;
-      newM=Math.ceil(newM/5)*5%60;
-      if(minRef.current) minRef.current.scrollTop=Math.floor(newM/5)*ITEM_H;
+      if(minRef.current) minRef.current.scrollTop=newM*ITEM_H;
     }
     onChange(`${pad(h)}:${pad(newM)}`);
   };
@@ -466,7 +465,7 @@ function TimeScrollPicker({value, onChange, label, compact, minMins}){
       <div style={{fontSize:14,fontWeight:700,color:"#555",padding:"0 2px",zIndex:2}}>:</div>
       <div ref={minRef} onScroll={onMinScroll} style={{...scrollStyle,width:38}}>
         <div style={{height:ITEM_H}}/>
-        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} style={itemStyle(mv===m||mv===Math.floor(m/5)*5,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
+        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} style={itemStyle(mv===m,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=mv*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
     </div>;
@@ -485,7 +484,7 @@ function TimeScrollPicker({value, onChange, label, compact, minMins}){
       <div style={{fontSize:20,fontWeight:700,color:"#555",padding:"0 4px",zIndex:2}}>:</div>
       <div ref={minRef} onScroll={onMinScroll} style={{...scrollStyle,width:56}}>
         <div style={{height:ITEM_H}}/>
-        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} className={itemClass(mv===m||mv===Math.floor(m/5)*5)} style={itemStyle(mv===m||mv===Math.floor(m/5)*5,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=Math.floor(mv/5)*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
+        {mins.map(mv=>{const dis=isDisabled(h,mv);return <div key={mv} className={itemClass(mv===m)} style={itemStyle(mv===m,dis)} onClick={()=>{if(dis)return;if(minRef.current)minRef.current.scrollTop=mv*ITEM_H;onChange(`${pad(h)}:${pad(mv)}`);}}>{pad(mv)}</div>;})}
         <div style={{height:ITEM_H}}/>
       </div>
     </div>
@@ -843,7 +842,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
   // Push action buttons into Modal footer slot (mobile only)
   useEffect(()=>{
     if(!setFooter) return;
-    const showSave=!(isNew&&tab==="timer"&&!timerApplied);
+    const showSave=!(isNew&&tab==="timer");
     setFooter(
       <div style={{display:"flex",gap:8}}>
         {!isNew&&<button onClick={()=>{if(form.repeat&&form.repeat!=="none"&&onRepeatDelete){setShowRepeatDel(true);}else onDelete(form.id);}} style={{flex:1,padding:"14px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
@@ -1088,7 +1087,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
             </div>
             {openPicker==="end"&&!form.allDay&&<div style={{padding:"12px 14px",background:"#fafafa",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
               <TimeScrollPicker value={form.endTime||"10:00"} onChange={onEndChange}
-                minMins={parseMins(form.startTime||"09:00")+5}/>
+                minMins={(form.endDate&&form.endDate>form.date)?null:parseMins(form.startTime||"09:00")+1}/>
             </div>}
           </>}
 
@@ -1145,17 +1144,38 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
     {tab==="timer"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:"10px 0"}}>
       <div style={{fontSize:58,fontWeight:100,letterSpacing:3,color:"#111",fontVariantNumeric:"tabular-nums"}}>{fmtSecs(elapsed)}</div>
       <div style={{display:"flex",gap:12}}>
+        {/* 应用时长 在左，深色主按钮；开始/暂停 在右，浅色次按钮 */}
+        {elapsed>0&&!running&&<button onClick={()=>{
+          stopAndApply();
+          // auto-save after applying
+          setTimeout(()=>{
+            if(!form.title.trim()) return;
+            const saved={...form,timerSecs:elapsed};
+            if(!hasTime){saved.startTime=null;saved.endTime=null;saved.allDay=false;}
+            saved.done=true;
+            if(!isNew&&ev?.repeat&&ev.repeat!=="none"){setPendingSave(saved);setShowRepeatSave(true);}
+            else onSave(saved);
+          },50);
+        }} style={{padding:"12px 28px",borderRadius:30,border:"none",background:"#333",color:"white",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>应用时长</button>}
         <button onClick={()=>{
           const next=!running;
           setRunning(next);
           if(next&&onTimerActive){
-            // hand off to root-level fullscreen overlay
             onTimerActive({
               title:form.title,
               startTime:form.startTime,
-              getElapsed:()=>elapsed,
               onPause:()=>setRunning(false),
-              onStop:()=>{setRunning(false);stopAndApply();},
+              onStop:(secs)=>{
+                setRunning(false);
+                const elapsedMins=Math.max(1,Math.round(secs/60));
+                let startM=form.startTime?parseMins(form.startTime):(()=>{const now=new Date();const nowM=now.getHours()*60+now.getMinutes();return((nowM-elapsedMins)+1440)%1440;})();
+                const startTime=form.startTime||`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
+                const endM=(startM+elapsedMins)%1440;
+                const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+                const saved={...form,timerSecs:secs,startTime,endTime,done:true,_skipAutoDone:true};
+                if(!saved.title.trim()) saved.title="未命名任务";
+                onSave(saved);
+              },
               onLater:(fsecs)=>{
                 const secs=fsecs!=null?fsecs:elapsed;
                 setRunning(false);
@@ -1163,8 +1183,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
               },
             });
           }
-        }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"#333",color:"white",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
-        {elapsed>0&&!running&&<button onClick={stopAndApply} style={{padding:"12px 20px",borderRadius:30,border:"none",background:"#555",color:"white",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>应用时长</button>}
+        }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"rgba(0,0,0,0.08)",color:running?"white":"#333",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
         {elapsed>0&&<button onClick={()=>{setRunning(false);setElapsed(0);setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:14,cursor:"pointer",textAlign:"center"}}>重置</button>}
       </div>
       {elapsed>0&&!running&&!timerApplied&&<button onClick={()=>{
@@ -1172,7 +1191,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
       }} style={{padding:"10px 28px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>稍后继续</button>}
       {elapsed>0&&<div style={{background:"#f2f2f7",borderRadius:12,padding:"10px 22px",textAlign:"center"}}>
         <div style={{fontSize:14,color:"#333",fontWeight:700}}>已计时 {fmtSecs(elapsed)}</div>
-        <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，填写名称后即可保存":"点击「应用时长」将更新结束时间"}</div>
+        <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，正在保存...":"点击「应用时长」将记录并保存"}</div>
       </div>}
       {form.startTime&&<div style={{fontSize:12,color:"#8e8e93"}}>开始时间：{form.startTime} → {form.endTime||"—"}</div>}
     </div>}
@@ -1183,7 +1202,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
         if(form.repeat&&form.repeat!=="none"&&onRepeatDelete){setShowRepeatDel(true);}
         else onDelete(form.id);
       }} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
-      {!(isNew&&tab==="timer"&&!timerApplied)&&<button onClick={doSave} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
+      {!(isNew&&tab==="timer")&&<button onClick={doSave} style={{flex:1,padding:"12px",border:"none",borderRadius:12,background:"#333",color:"white",cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>{isNew?"添加":"保存"}</button>}
     </div>}
     <InlineRepeatDelete open={showRepeatDel} onClose={()=>setShowRepeatDel(false)} onRepeatDelete={key=>{setShowRepeatDel(false);onRepeatDelete&&onRepeatDelete(key);}}/>
     <InlineRepeatDelete
@@ -3135,8 +3154,6 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
 
 /* ══════ FULLSCREEN TIMER OVERLAY ══════ */
 function FullscreenTimer({info, onDismiss}){
-  // info: { title, startTime, onPause, onStop, onLater }
-  // We drive our own clock here since EventForm's elapsed is in closure
   const [secs, setSecs] = useState(0);
   const startTsRef = useRef(Date.now());
   const rafRef = useRef();
@@ -3159,13 +3176,14 @@ function FullscreenTimer({info, onDismiss}){
       开始 {info.startTime}
     </div>}
     <div style={{display:"flex",gap:14,marginBottom:20}}>
+      {/* 结束（应用时长）在左，白色主按钮；暂停在右，浅色次按钮 */}
+      <button onClick={()=>{ info.onStop(secs); onDismiss(); }}
+        style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
+        结束
+      </button>
       <button onClick={()=>{ info.onPause(); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
-      </button>
-      <button onClick={()=>{ info.onStop(); onDismiss(); }}
-        style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
-        结束
       </button>
     </div>
     <button onClick={()=>{ info.onLater(secs); onDismiss(); }}
