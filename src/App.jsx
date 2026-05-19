@@ -170,7 +170,7 @@ function useFirestore(key, def) {
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            set(parsed);
+            set(key==="cfpx_ev"?migrateRepeatDays(parsed):parsed);
             try { localStorage.setItem(key, raw); } catch {}
           } catch {}
         }
@@ -210,7 +210,17 @@ function useFirestore(key, def) {
 }
 const useStore = useFirestore;
 
-/* ── default labels ── */
+// Migrate old repeatDays (0=Sun JS native) to new (0=Mon dowMon-based)
+const migrateRepeatDays=evs=>evs.map(ev=>{
+  if(ev.repeat!=="weekly"||!ev.repeatDays?.length) return ev;
+  // Old format: 0=Sun,1=Mon...6=Sat; new: 0=Mon...6=Sun
+  // Heuristic: if any value is 0 and the event's base date dowMon≠0, it's old format
+  // Safer: always convert by mapping old getDay() → dowMon: (old+6)%7
+  // Only migrate if not already migrated (flag)
+  if(ev._rdMigrated) return ev;
+  const newDays=ev.repeatDays.map(d=>(d+6)%7);
+  return{...ev,repeatDays:newDays,_rdMigrated:true};
+});
 const DEF_LABELS=[
   {id:"sleep",name:"Sleep",emoji:"😴",color:"#7DC97B",keywords:["睡觉","sleep","午休","午睡"],children:[]},
   {id:"work",name:"Work",emoji:"💼",color:"#9E9E9E",keywords:["工作","会议","汇报","项目","加班"],children:[
@@ -270,7 +280,7 @@ function occursOn(ev,ds){
   if(ds<rStart) return false;
   if(rEnd&&ds>rEnd) return false;
   if(ev.repeat==="daily") return true;
-  if(ev.repeat==="weekly"){const dow=tgt.getDay();return ev.repeatDays?.length>0?ev.repeatDays.includes(dow):dow===base.getDay();}
+  if(ev.repeat==="weekly"){const dow=dowMon(tgt);return ev.repeatDays?.length>0?ev.repeatDays.includes(dow):dow===dowMon(base);}
   if(ev.repeat==="monthly") return tgt.getDate()===base.getDate();
   if(ev.repeat==="yearly") return tgt.getDate()===base.getDate()&&tgt.getMonth()===base.getMonth();
   return false;
@@ -297,7 +307,6 @@ const lightenHex=(hex,amount=0.45)=>{
 
 /* ── shared styles ── */
 const INP={border:"1.5px solid #EBEBEB",borderRadius:10,padding:"8px 11px",fontSize:14,outline:"none",background:"white",color:"#111",WebkitTextFillColor:"#111"};
-const PRESETS=["#7DC97B","#9E9E9E","#F5C842","#E8A23A","#4CAF85","#4A90D9","#E74C3C","#9B59B6","#1ABC9C","#E67E22","#FF6B9D","#34C759"];
 
 /* ══════ CUSTOM SELECT (iPad/Mac safe) ══════ */
 function CustomSelect({value, onChange, options, style={}}){
@@ -336,23 +345,36 @@ function CustomSelect({value, onChange, options, style={}}){
 }
 
 /* ══════ COLOR PICKER ══════ */
+const getRecentColors=()=>{try{return JSON.parse(localStorage.getItem("komu_recent_colors")||"[]");}catch{return[];}};
+const addRecentColor=(c)=>{try{const r=getRecentColors().filter(x=>x!==c);localStorage.setItem("komu_recent_colors",JSON.stringify([c,...r].slice(0,20)));}catch{}};
+
 function ColorPicker({value,onChange}){
   const [hex,setHex]=useState(value||"#4A90D9");
-  // Keep in sync if parent resets value (e.g. new label)
+  const [recent,setRecent]=useState(()=>getRecentColors());
   const prevValue=useRef(value);
   useEffect(()=>{if(value&&value!==prevValue.current){setHex(value);prevValue.current=value;}},[value]);
   const ok=h=>/^#[0-9A-Fa-f]{6}$/.test(h);
-  const commit=h=>{if(ok(h)){prevValue.current=h;onChange(h);}};
+  const commit=h=>{if(ok(h)){prevValue.current=h;onChange(h);addRecentColor(h);setRecent(getRecentColors());}};
+  const openNativePicker=()=>{
+    const inp=document.createElement("input");inp.type="color";inp.value=ok(hex)?hex:"#4A90D9";
+    inp.style.cssText="position:fixed;opacity:0;pointer-events:none";
+    document.body.appendChild(inp);
+    inp.addEventListener("input",e=>setHex(e.target.value));
+    inp.addEventListener("change",e=>{commit(e.target.value);document.body.removeChild(inp);});
+    inp.click();
+  };
   return <div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-      {PRESETS.map(c=><div key={c} onClick={()=>{setHex(c);commit(c);}} style={{width:22,height:22,borderRadius:6,background:c,cursor:"pointer",border:hex===c?"2.5px solid #333":"2px solid transparent"}}/>)}
-    </div>
+    {recent.length>0&&<>
+      <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>最近使用</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+        {recent.map(c=><div key={c} onClick={()=>{setHex(c);commit(c);}} style={{width:22,height:22,borderRadius:6,background:c,cursor:"pointer",border:hex===c?"2.5px solid #333":"2px solid transparent"}}/>)}
+      </div>
+    </>}
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <div style={{width:26,height:26,borderRadius:6,background:ok(hex)?hex:"#ccc",border:"1px solid #eee"}}/>
+      <div onClick={openNativePicker} style={{width:26,height:26,borderRadius:6,background:ok(hex)?hex:"#ccc",border:"1px solid #eee",cursor:"pointer",flexShrink:0}}/>
       <input value={hex} onChange={e=>{setHex(e.target.value);commit(e.target.value);}}
-        className="color-hex-input"
-        style={{...INP,width:90,fontFamily:"monospace"}}
-        placeholder="#000000"/>
+        className="color-hex-input" style={{...INP,width:90,fontFamily:"monospace"}} placeholder="#000000"/>
+      <span style={{fontSize:11,color:"#8e8e93",cursor:"pointer"}} onClick={openNativePicker}>选色</span>
     </div>
   </div>;
 }
@@ -373,6 +395,7 @@ function Modal({title,onClose,children,footer,width=440,hideHeader=false}){
       maxWidth: mobile?"100%":`${width}px`,
       maxHeight: mobile?"100dvh":"92vh",
       height: mobile?"100dvh":undefined,
+      overflow: "hidden",
     }}>
       {!hideHeader&&title&&<div style={{display:"flex",alignItems:"center",padding:"16px 20px 12px",borderBottom:"1px solid #f2f2f2",flexShrink:0}}>
         {mobile
@@ -530,11 +553,20 @@ function LabelEditForm({data,setData,title:t,onOk,onCancel,onDelete}){
 }
 
 /* ══════ LABEL MANAGER ══════ */
-function LabelManager({labels,onSave,initialLabelId,setFooter}){
+function LabelManager({labels,onSave,initialLabelId,initialChildId,setFooter}){
   const [list,setList]=useState(()=>labels.map(l=>({...l,children:(l.children||[]).map(c=>({...c}))})));
   const [ed,setEd]=useState(null);
   const [ced,setCed]=useState(null);
   const [selLabel,setSelLabel]=useState(initialLabelId||null);
+
+  // Auto-open child edit when initialChildId is provided
+  useEffect(()=>{
+    if(!initialLabelId||!initialChildId) return;
+    const lb=list.find(l=>l.id===initialLabelId);
+    if(!lb) return;
+    const ch=lb.children?.find(c=>c.id===initialChildId);
+    if(ch) setCed({parentId:lb.id,child:{...ch},isNew:false});
+  },[]);
   // syncList: persist labels to parent WITHOUT closing modal
   const syncList=(next)=>{onSave(next,/*noClose=*/true);};
 
@@ -1141,13 +1173,12 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
       </div>
     </div>}
 
-    {tab==="timer"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:"10px 0"}}>
+    {tab==="timer"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,padding:"10px 0"}}>
       <div style={{fontSize:58,fontWeight:100,letterSpacing:3,color:"#111",fontVariantNumeric:"tabular-nums"}}>{fmtSecs(elapsed)}</div>
-      <div style={{display:"flex",gap:12}}>
-        {/* 应用时长 在左，深色主按钮；开始/暂停 在右，浅色次按钮 */}
+      {/* Row 1: 应用时长（左主）+ 开始/暂停（右次） */}
+      <div style={{display:"flex",gap:10}}>
         {elapsed>0&&!running&&<button onClick={()=>{
           stopAndApply();
-          // auto-save after applying
           setTimeout(()=>{
             if(!form.title.trim()) return;
             const saved={...form,timerSecs:elapsed};
@@ -1156,7 +1187,7 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
             if(!isNew&&ev?.repeat&&ev.repeat!=="none"){setPendingSave(saved);setShowRepeatSave(true);}
             else onSave(saved);
           },50);
-        }} style={{padding:"12px 28px",borderRadius:30,border:"none",background:"#333",color:"white",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>应用时长</button>}
+        }} style={{padding:"12px 28px",borderRadius:30,border:"none",background:"#333",color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>应用时长</button>}
         <button onClick={()=>{
           const next=!running;
           setRunning(next);
@@ -1164,7 +1195,8 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
             onTimerActive({
               title:form.title,
               startTime:form.startTime,
-              onPause:()=>setRunning(false),
+              baseElapsed:elapsed,
+              onPause:(s)=>{setRunning(false);setElapsed(s);baseElapsedRef.current=s;},
               onStop:(secs)=>{
                 setRunning(false);
                 const elapsedMins=Math.max(1,Math.round(secs/60));
@@ -1183,12 +1215,13 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
               },
             });
           }
-        }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"rgba(0,0,0,0.08)",color:running?"white":"#333",fontSize:16,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{running?"暂停":"开始"}</button>
-        {elapsed>0&&<button onClick={()=>{setRunning(false);setElapsed(0);setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:14,cursor:"pointer",textAlign:"center"}}>重置</button>}
+        }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"rgba(0,0,0,0.08)",color:running?"white":"#333",fontSize:16,fontWeight:700,cursor:"pointer"}}>{running?"暂停":"开始"}</button>
       </div>
-      {elapsed>0&&!running&&!timerApplied&&<button onClick={()=>{
-        onSave(computeTimedSave(elapsed));
-      }} style={{padding:"10px 28px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"center"}}>稍后继续</button>}
+      {/* Row 2: 重置 + 稍后继续（仅暂停后显示） */}
+      {elapsed>0&&!running&&<div style={{display:"flex",gap:10}}>
+        <button onClick={()=>{setRunning(false);setElapsed(0);baseElapsedRef.current=0;setForm(p=>({...p,timerSecs:0}));}} style={{padding:"9px 20px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:13,cursor:"pointer"}}>重置</button>
+        {!timerApplied&&<button onClick={()=>onSave(computeTimedSave(elapsed))} style={{padding:"9px 20px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>稍后继续</button>}
+      </div>}
       {elapsed>0&&<div style={{background:"#f2f2f7",borderRadius:12,padding:"10px 22px",textAlign:"center"}}>
         <div style={{fontSize:14,color:"#333",fontWeight:700}}>已计时 {fmtSecs(elapsed)}</div>
         <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，正在保存...":"点击「应用时长」将记录并保存"}</div>
@@ -3139,7 +3172,7 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
                 borderRadius:7,
                 outline:childDragOver?.parentId===lb.id&&childDragOver?.idx===cidx&&childDragSrc.current?.idx!==cidx?"2px solid #007AFF":"none",
               }}>
-              <button onClick={()=>{if(childWasDragging.current)return;onManage(lb.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px 4px 22px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
+              <button onClick={()=>{if(childWasDragging.current)return;onManage(lb.id,ch.id);}} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px 4px 22px",width:"100%",border:"none",background:"none",borderRadius:7,cursor:"pointer",textAlign:"left"}}>
                 <span style={{fontSize:10,color:"#c0c0c0",marginRight:1}}>⠿</span>
                 <div style={{width:6,height:6,borderRadius:"50%",background:ch.color,flexShrink:0}}/>
                 <span style={{fontSize:12,color:"#666"}}>{ch.emoji} {ch.name}</span>
@@ -3154,8 +3187,9 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
 
 /* ══════ FULLSCREEN TIMER OVERLAY ══════ */
 function FullscreenTimer({info, onDismiss}){
-  const [secs, setSecs] = useState(0);
-  const startTsRef = useRef(Date.now());
+  const [secs, setSecs] = useState(info.baseElapsed||0);
+  const [mini, setMini] = useState(false);
+  const startTsRef = useRef(Date.now()-(info.baseElapsed||0)*1000);
   const rafRef = useRef();
   useEffect(()=>{
     const tick=()=>{ setSecs(Math.floor((Date.now()-startTsRef.current)/1000)); rafRef.current=requestAnimationFrame(tick); };
@@ -3164,6 +3198,16 @@ function FullscreenTimer({info, onDismiss}){
     document.addEventListener("visibilitychange",onVis);
     return()=>{ cancelAnimationFrame(rafRef.current); document.removeEventListener("visibilitychange",onVis); };
   },[]);
+
+  if(mini){
+    return <div onClick={()=>setMini(false)} style={{position:"fixed",top:0,left:0,right:0,zIndex:99999,background:"#1a1a1a",padding:"10px 20px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.25)"}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:"#FF6B6B",flexShrink:0,animation:"timerPulse 1.5s infinite"}}/>
+      <style>{`@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+      <span style={{fontSize:13,color:"rgba(255,255,255,0.6)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
+      <span style={{fontSize:16,fontWeight:200,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:1}}>{fmtSecs(secs)}</span>
+      <span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>点击展开</span>
+    </div>;
+  }
 
   return <div style={{position:"fixed",inset:0,zIndex:99999,background:"#0d0d0d",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0}}>
     <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,0.4)",letterSpacing:2,textTransform:"uppercase",marginBottom:24,maxWidth:280,textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
@@ -3175,21 +3219,26 @@ function FullscreenTimer({info, onDismiss}){
     {info.startTime&&<div style={{fontSize:14,color:"rgba(255,255,255,0.3)",marginBottom:40}}>
       开始 {info.startTime}
     </div>}
-    <div style={{display:"flex",gap:14,marginBottom:20}}>
-      {/* 结束（应用时长）在左，白色主按钮；暂停在右，浅色次按钮 */}
+    <div style={{display:"flex",gap:14,marginBottom:16}}>
       <button onClick={()=>{ info.onStop(secs); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         结束
       </button>
-      <button onClick={()=>{ info.onPause(); onDismiss(); }}
+      <button onClick={()=>{ info.onPause(secs); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
       </button>
     </div>
-    <button onClick={()=>{ info.onLater(secs); onDismiss(); }}
-      style={{padding:"10px 28px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:14,cursor:"pointer"}}>
-      稍后继续
-    </button>
+    <div style={{display:"flex",gap:12}}>
+      <button onClick={()=>setMini(true)}
+        style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
+        缩小
+      </button>
+      <button onClick={()=>{ info.onLater(secs); onDismiss(); }}
+        style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
+        稍后继续
+      </button>
+    </div>
   </div>;
 }
 
@@ -3201,10 +3250,10 @@ function EventFormModal({title,onClose,ev,instanceDate,labels,onSave,onDelete,on
   </Modal>;
 }
 
-function LabelManagerModal({onClose,labels,initialLabelId,onSave}){
+function LabelManagerModal({onClose,labels,initialLabelId,initialChildId,onSave}){
   const [footer,setFooter]=useState(null);
   return <Modal title="管理标签" onClose={onClose} width={520} footer={footer}>
-    <LabelManager labels={labels} initialLabelId={initialLabelId} onSave={onSave} setFooter={setFooter}/>
+    <LabelManager labels={labels} initialLabelId={initialLabelId} initialChildId={initialChildId} onSave={onSave} setFooter={setFooter}/>
   </Modal>;
 }
 
@@ -3380,7 +3429,7 @@ export default function App(){
     <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:16px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
-          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId)=>setModal({t:"labels",labelId})} onReorder={ls=>setLabels(ls)} onReorderChildren={(parentId,newChildren)=>setLabels(prev=>prev.map(l=>l.id===parentId?{...l,children:newChildren}:l))}/>
+          <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId,childId)=>setModal({t:"labels",labelId,childId})} onReorder={ls=>setLabels(ls)} onReorderChildren={(parentId,newChildren)=>setLabels(prev=>prev.map(l=>l.id===parentId?{...l,children:newChildren}:l))}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{height:48,borderBottom:"1px solid #ebebeb",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
               <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:700}}>{TN[tab]}</span><SyncDot/></div>
@@ -3396,7 +3445,7 @@ export default function App(){
     }
     {modal?.t==="add"&&<EventFormModal title="新建事项" onClose={()=>setModal(null)} labels={labels} onSave={saveEv} onDelete={delEv} onTimerActive={info=>setTimerOverlay(info)} initialDate={modal.date} initialHour={modal.hour}/>}
     {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>setTimerOverlay(info)}/>}
-    {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
+    {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} initialChildId={modal.childId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
     {timerOverlay&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)}/>}
   </div>;
