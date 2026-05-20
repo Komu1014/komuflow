@@ -1790,7 +1790,7 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
       if(ev.endDate&&ev.endDate!==ev.date){
         // Multi-day with explicit endDate
         if(ds===ev.date){ segs.push({...ev,_startMins:startMins,_endMins:1440,_segLabel:`${ev.startTime}～${ev.endTime||"00:00"}`}); }
-        else if(ds===ev.endDate){ const em=parseMins(ev.endTime||"00:00")||60; segs.push({...ev,_startMins:0,_endMins:em,_segLabel:`00:00～${ev.endTime||"00:00"}`}); }
+        else if(ds===ev.endDate){ const em=parseMins(ev.endTime||"00:00")||60; segs.push({...ev,_startMins:0,_endMins:em,_segLabel:`${ev.startTime}～${ev.endTime||"00:00"}`}); }
         else { segs.push({...ev,_startMins:0,_endMins:1440,_segLabel:`00:00～24:00`}); }
       } else if(endMins<=startMins&&endMins>0){
         // Same-day overnight (e.g. 23:00–06:00): split into tail today + head tomorrow
@@ -1809,7 +1809,7 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
       const endMins=ev.endTime?parseMins(ev.endTime):startMins+60;
       if(endMins<=startMins&&endMins>0){
         // This event spills into ds
-        segs.push({...ev,_startMins:0,_endMins:endMins,_segLabel:`00:00～${ev.endTime}`,_crossCarry:true});
+        segs.push({...ev,_startMins:0,_endMins:endMins,_segLabel:`${ev.startTime}～${ev.endTime}`,_crossCarry:true});
       }
     });
     return segs;
