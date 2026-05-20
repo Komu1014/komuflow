@@ -374,7 +374,6 @@ function ColorPicker({value,onChange}){
       <div onClick={openNativePicker} style={{width:26,height:26,borderRadius:6,background:ok(hex)?hex:"#ccc",border:"1px solid #eee",cursor:"pointer",flexShrink:0}}/>
       <input value={hex} onChange={e=>{setHex(e.target.value);commit(e.target.value);}}
         className="color-hex-input" style={{...INP,width:90,fontFamily:"monospace"}} placeholder="#000000"/>
-      <span style={{fontSize:11,color:"#8e8e93",cursor:"pointer"}} onClick={openNativePicker}>选色</span>
     </div>
   </div>;
 }
@@ -536,7 +535,9 @@ function LabelEditForm({data,setData,title:t,onOk,onCancel,onDelete}){
       <input ref={nameRef} defaultValue={data.name||""} placeholder="标签名称" className="label-edit-input"
         style={{...INP,flex:1}}/>
     </div>
-    <ColorPicker value={data.color} onChange={c=>setData(p=>({...p,color:c}))}/>
+    <div style={{marginTop:4,marginBottom:4}}>
+      <ColorPicker value={data.color} onChange={c=>setData(p=>({...p,color:c}))}/>
+    </div>
     <div style={{marginTop:10}}>
       <div style={{fontSize:11,fontWeight:700,color:"#8e8e93",marginBottom:5}}>自动分类关键词（顿号分隔）</div>
       <input ref={kwRef} defaultValue={(data.keywords||[]).join("，")} placeholder="关键词1，关键词2"
@@ -544,10 +545,9 @@ function LabelEditForm({data,setData,title:t,onOk,onCancel,onDelete}){
       <div style={{fontSize:11,color:"#aaa",marginTop:3}}>检测到关键词时自动打标签</div>
     </div>
     <div style={{display:"flex",gap:8,marginTop:10}}>
-      <button onClick={onCancel} style={{flex:1,padding:"8px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",cursor:"pointer",fontSize:13,textAlign:"center"}}>取消</button>
       {onDelete&&<button onClick={onDelete} style={{padding:"8px 14px",border:"none",borderRadius:10,background:"#FFF0F0",color:"#FF3B30",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>删除</button>}
       <button onClick={()=>{const latest=getLatest();setData(p=>({...p,...latest}));onOk(latest);}}
-        style={{flex:2,padding:"8px",border:"none",borderRadius:10,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>保存</button>
+        style={{flex:1,padding:"8px",border:"none",borderRadius:10,background:"#333",color:"white",cursor:"pointer",fontSize:13,fontWeight:600,textAlign:"center"}}>保存</button>
     </div>
   </div>;
 }
@@ -1783,25 +1783,43 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
   const getLb=id=>flat.find(l=>l.id===id)||{color:"#ccc",emoji:"📌"};
 
   const getDaySegments=useCallback((ds)=>{
-    return getForDate(events,ds,{includeUnscheduled:false}).filter(e=>!e.allDay&&e.startTime).map(ev=>{
+    const segs=[];
+    getForDate(events,ds,{includeUnscheduled:false}).filter(e=>!e.allDay&&e.startTime).forEach(ev=>{
       let startMins=parseMins(ev.startTime);
       let endMins=ev.endTime?parseMins(ev.endTime):startMins+60;
-      if(ev.endDate && ev.endDate !== ev.date){
-        if(ds === ev.date){ endMins = 1440; }
-        else if(ds === ev.endDate){ startMins = 0; endMins = parseMins(ev.endTime||"00:00"); if(endMins===0) endMins=60; }
-        else { startMins=0; endMins=1440; }
+      if(ev.endDate&&ev.endDate!==ev.date){
+        // Multi-day with explicit endDate
+        if(ds===ev.date){ segs.push({...ev,_startMins:startMins,_endMins:1440,_segLabel:`${ev.startTime}～${ev.endTime||"00:00"}`}); }
+        else if(ds===ev.endDate){ const em=parseMins(ev.endTime||"00:00")||60; segs.push({...ev,_startMins:0,_endMins:em,_segLabel:`00:00～${ev.endTime||"00:00"}`}); }
+        else { segs.push({...ev,_startMins:0,_endMins:1440,_segLabel:`00:00～24:00`}); }
+      } else if(endMins<=startMins&&endMins>0){
+        // Same-day overnight (e.g. 23:00–06:00): split into tail today + head tomorrow
+        // Today's portion: startMins → 1440
+        segs.push({...ev,_startMins:startMins,_endMins:1440,_segLabel:`${ev.startTime}～${ev.endTime||"00:00"}`});
+        // Tomorrow's portion: show on next day via a synthetic segment
+        // (handled by getForDate returning ev for endDate+1 if we add tomorrow logic below)
       } else {
-        if(endMins<=startMins) endMins=1440;
+        segs.push({...ev,_startMins:startMins,_endMins:Math.min(endMins,1440)});
       }
-      return {...ev,_startMins:startMins,_endMins:Math.min(endMins,1440)};
     });
+    // Also add overnight-tail segments from previous day's events
+    const prevDs=fmtDate(addDays(new Date(ds),-1));
+    getForDate(events,prevDs,{includeUnscheduled:false}).filter(e=>!e.allDay&&e.startTime&&!e.endDate).forEach(ev=>{
+      const startMins=parseMins(ev.startTime);
+      const endMins=ev.endTime?parseMins(ev.endTime):startMins+60;
+      if(endMins<=startMins&&endMins>0){
+        // This event spills into ds
+        segs.push({...ev,_startMins:0,_endMins:endMins,_segLabel:`00:00～${ev.endTime}`,_crossCarry:true});
+      }
+    });
+    return segs;
   },[events]);
 
   const layoutDay=useCallback(segs=>{
     const s=[...segs].sort((a,b)=>a._startMins-b._startMins);
     const cols=[];
     s.forEach(ev=>{let ci=cols.findIndex(col=>{const last=col[col.length-1];return last._endMins<=ev._startMins;});if(ci===-1){ci=cols.length;cols.push([]);}cols[ci].push(ev);});
-    const tot=cols.length||1;const res={};cols.forEach((col,ci)=>col.forEach(ev=>{res[ev.id]={ci,tot};}));
+    const tot=cols.length||1;const res={};cols.forEach((col,ci)=>col.forEach(ev=>{res[ev._crossCarry?ev.id+"_carry":ev.id]={ci,tot};}));
     return res;
   },[]);
 
@@ -1816,7 +1834,7 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
           const ds=fmtDate(d);
           const segs=getDaySegments(ds);
           const layout=layoutDay(segs);
-          const hourSegs=segs.filter(e=>h<24&&Math.floor(e._startMins/60)===h);
+          const hourSegs=segs.filter(e=>h<24&&e._startMins<(h+1)*60&&e._endMins>h*60&&Math.floor(e._startMins/60)===h);
           return <div key={`d${di}h${h}`} style={{height:h<24?HH:0,borderBottom:h<24?"1px solid #f5f5f5":"none",position:"relative",cursor:"pointer"}} onClick={h<24?()=>onSlotClick&&onSlotClick(ds,h):undefined}>
             {hourSegs.map(ev=>{
               const lb=getLb(ev.labelId);
@@ -1826,18 +1844,27 @@ function TimelineBody({days,events,labels,onEventClick,onSlotClick,today}){
               const durMins=ev._endMins-ev._startMins;
               const top=(topMin/60)*HH;
               const height=Math.max(18,(durMins/60)*HH-2);
-              const {ci,tot}=layout[ev.id]||{ci:0,tot:1};
+              const segKey=ev._crossCarry?ev.id+"_carry":ev.id;
+              const {ci,tot}=layout[segKey]||{ci:0,tot:1};
               // For cross-day events, always show the original full time range as label (e.g. 23:00–07:00)
               // so each segment (first day tail + second day head) shares the same label
               const isCrossDay=ev.endDate&&ev.endDate!==ev.date;
-              const startLabel=ev.startTime||`${pad(Math.floor(ev._startMins/60))}:${pad(ev._startMins%60)}`;
-              const endLabel=isCrossDay
-                ? (ev.endTime||`${pad(Math.floor(ev._endMins/60))}:${pad(ev._endMins%60)}`)
-                : `${pad(Math.floor(ev._endMins/60))}:${pad(ev._endMins%60)}`;
-              return <div key={ev.id} onClick={e=>{e.stopPropagation();onEventClick(ev,ds);}}
+              const origEnd=ev.endTime||"00:00";
+              let timeLabel=ev._segLabel||"";
+              if(!timeLabel){
+                if(isCrossDay){
+                  if(ds===ev.date) timeLabel=`${ev.startTime}～${origEnd}`;
+                  else if(ds===ev.endDate) timeLabel=`00:00～${origEnd}`;
+                  else timeLabel=`00:00～24:00`;
+                } else {
+                  const eLabel=`${pad(Math.floor(ev._endMins/60))}:${pad(ev._endMins%60)}`;
+                  timeLabel=`${ev.startTime||pad(Math.floor(ev._startMins/60))+":"+pad(ev._startMins%60)}–${eLabel}`;
+                }
+              }
+              return <div key={segKey} onClick={e=>{e.stopPropagation();onEventClick(ev,ds);}}
                 style={{position:"absolute",top,left:`calc(${ci/tot*100}% + 1px)`,width:`calc(${100/tot}% - 2px)`,height,background:bgColor,borderRadius:5,padding:"2px 4px",cursor:"pointer",zIndex:2,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.1)",borderLeft:`3px solid ${lb.color}`}}>
                 <div style={{fontSize:10,fontWeight:700,color:isDone?"white":"#333",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}><span style={{marginRight:3}}>{lb.emoji}</span>{ev.title}</div>
-                {height>28&&<div style={{fontSize:9,color:isDone?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.5)"}}>{startLabel} – {endLabel}</div>}
+                {height>28&&<div style={{fontSize:9,color:isDone?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.5)"}}>{timeLabel}</div>}
                 {height>44&&<div style={{fontSize:9,color:isDone?"rgba(255,255,255,0.7)":"rgba(0,0,0,0.4)"}}>{fmtMins(durMins)}</div>}
                 {height>60&&ev.notes&&<div style={{fontSize:9,color:isDone?"rgba(255,255,255,0.7)":"rgba(0,0,0,0.4)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.notes}</div>}
               </div>;
@@ -3185,10 +3212,27 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
   </div>;
 }
 
+/* ══════ MINI TIMER BAR (in layout flow, no overlap) ══════ */
+function MiniTimerBar({info, onExpand}){
+  const [secs,setSecs]=useState(info.startSecs||0);
+  const startTsRef=useRef(Date.now()-(info.startSecs||0)*1000);
+  const rafRef=useRef();
+  useEffect(()=>{
+    const tick=()=>{setSecs(Math.floor((Date.now()-startTsRef.current)/1000));rafRef.current=requestAnimationFrame(tick);};
+    rafRef.current=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(rafRef.current);
+  },[]);
+  return <div style={{background:"#1a1a1a",padding:"9px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0,cursor:"pointer"}} onClick={onExpand}>
+    <div style={{width:7,height:7,borderRadius:"50%",background:"#FF6B6B",flexShrink:0,animation:"timerPulse 1.5s infinite"}}/>
+    <span style={{fontSize:13,color:"rgba(255,255,255,0.55)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
+    <span style={{fontSize:15,fontWeight:300,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:0.5}}>{fmtSecs(secs)}</span>
+    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>点击展开 ›</span>
+  </div>;
+}
+
 /* ══════ FULLSCREEN TIMER OVERLAY ══════ */
-function FullscreenTimer({info, onDismiss}){
+function FullscreenTimer({info, onDismiss, onMini}){
   const [secs, setSecs] = useState(info.baseElapsed||0);
-  const [mini, setMini] = useState(false);
   const startTsRef = useRef(Date.now()-(info.baseElapsed||0)*1000);
   const rafRef = useRef();
   useEffect(()=>{
@@ -3198,16 +3242,6 @@ function FullscreenTimer({info, onDismiss}){
     document.addEventListener("visibilitychange",onVis);
     return()=>{ cancelAnimationFrame(rafRef.current); document.removeEventListener("visibilitychange",onVis); };
   },[]);
-
-  if(mini){
-    return <div onClick={()=>setMini(false)} style={{position:"fixed",top:0,left:0,right:0,zIndex:99999,background:"#1a1a1a",padding:"10px 20px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.25)"}}>
-      <div style={{width:8,height:8,borderRadius:"50%",background:"#FF6B6B",flexShrink:0,animation:"timerPulse 1.5s infinite"}}/>
-      <style>{`@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-      <span style={{fontSize:13,color:"rgba(255,255,255,0.6)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
-      <span style={{fontSize:16,fontWeight:200,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:1}}>{fmtSecs(secs)}</span>
-      <span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>点击展开</span>
-    </div>;
-  }
 
   return <div style={{position:"fixed",inset:0,zIndex:99999,background:"#0d0d0d",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0}}>
     <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,0.4)",letterSpacing:2,textTransform:"uppercase",marginBottom:24,maxWidth:280,textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
@@ -3230,7 +3264,7 @@ function FullscreenTimer({info, onDismiss}){
       </button>
     </div>
     <div style={{display:"flex",gap:12}}>
-      <button onClick={()=>setMini(true)}
+      <button onClick={()=>onMini(secs)}
         style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
         缩小
       </button>
@@ -3426,7 +3460,9 @@ export default function App(){
   </div>;
 
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
-    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:16px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}`}</style>
+    <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:16px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
+    {/* Mini timer bar — in layout flow, pushes content down */}
+    {timerOverlay?.mini&&<MiniTimerBar info={timerOverlay} onExpand={()=>setTimerOverlay(p=>({...p,mini:false}))}/>}
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
           <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId,childId)=>setModal({t:"labels",labelId,childId})} onReorder={ls=>setLabels(ls)} onReorderChildren={(parentId,newChildren)=>setLabels(prev=>prev.map(l=>l.id===parentId?{...l,children:newChildren}:l))}/>
@@ -3447,6 +3483,6 @@ export default function App(){
     {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>setTimerOverlay(info)}/>}
     {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} initialChildId={modal.childId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
-    {timerOverlay&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)}/>}
+    {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs)=>setTimerOverlay(p=>({...p,mini:true,startSecs:secs}))}/>}
   </div>;
 }
