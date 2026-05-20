@@ -3214,21 +3214,30 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
 /* ══════ MINI TIMER BAR (in layout flow, no overlap) ══════ */
 function MiniTimerBar({info, onResume, onFinish, onBack}){
   const [expanded, setExpanded]=useState(false);
+  const [secs, setSecs]=useState(info.pausedSecs||0);
+  const rafRef=useRef();
+  useEffect(()=>{
+    if(info.paused){setSecs(info.pausedSecs||0);return;}
+    // 缩小模式继续计时：从 pausedSecs 处开始
+    const startTs=Date.now()-(info.pausedSecs||0)*1000;
+    const tick=()=>{setSecs(Math.floor((Date.now()-startTs)/1000));rafRef.current=requestAnimationFrame(tick);};
+    rafRef.current=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(rafRef.current);
+  },[info.paused,info.pausedSecs]);
+
   return <div style={{margin:"10px 16px 0",background:"white",borderRadius:14,border:"1px solid #ebebeb",overflow:"hidden",flexShrink:0}}>
-    {/* Header row */}
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",cursor:"pointer"}} onClick={()=>setExpanded(p=>!p)}>
-      <div style={{width:8,height:8,borderRadius:"50%",background:"#8e8e93",flexShrink:0}}/>
+      <div style={{width:8,height:8,borderRadius:"50%",background:info.paused?"#8e8e93":"#FF6B6B",flexShrink:0,animation:info.paused?"none":"timerPulse 1.5s infinite"}}/>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:14,fontWeight:600,color:"#111",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"未命名任务"}</div>
-        <div style={{fontSize:11,color:"#8e8e93",marginTop:1}}>已暂停 · {fmtSecs(info.pausedSecs||0)}</div>
+        <div style={{fontSize:11,color:"#8e8e93",marginTop:1}}>{info.paused?"已暂停":"计时中"} · {fmtSecs(secs)}</div>
       </div>
       <span style={{fontSize:12,color:"#8e8e93"}}>{expanded?"收起":"操作"}</span>
     </div>
-    {/* Expanded actions */}
     {expanded&&<div style={{display:"flex",gap:8,padding:"0 14px 12px"}}>
-      <button onClick={()=>{setExpanded(false);onResume();}}
-        style={{flex:1,padding:"10px",border:"none",borderRadius:10,background:"#333",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>开始</button>
-      <button onClick={()=>{setExpanded(false);onFinish();}}
+      <button onClick={()=>{setExpanded(false);onResume(secs);}}
+        style={{flex:1,padding:"10px",border:"none",borderRadius:10,background:"#333",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{info.paused?"开始":"全屏"}</button>
+      <button onClick={()=>{setExpanded(false);onFinish(secs);}}
         style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#333",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"center"}}>完成</button>
       <button onClick={()=>{setExpanded(false);onBack();}}
         style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#8e8e93",fontSize:13,cursor:"pointer",textAlign:"center"}}>返回</button>
@@ -3264,12 +3273,12 @@ function FullscreenTimer({info, onDismiss, onMini}){
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         完成
       </button>
-      <button onClick={()=>{ onMini(secs); onDismiss(); }}
+      <button onClick={()=>{ onMini(secs,true); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
       </button>
     </div>
-    <button onClick={()=>onMini(secs)}
+    <button onClick={()=>onMini(secs,false)}
       style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
       缩小
     </button>
@@ -3464,20 +3473,15 @@ export default function App(){
     {/* Mini timer bar — in layout flow, pushes content down */}
     {timerOverlay?.mini&&<MiniTimerBar
       info={timerOverlay}
-      onResume={()=>{
-        // 开始：将暂停前的时段作为已完成记录保存，然后重新开启全屏从0开始
-        const pausedSecs=timerOverlay.pausedSecs||0;
-        if(pausedSecs>0) timerOverlay.onStop(pausedSecs);
-        // Reset elapsed and show fullscreen again
-        setTimerOverlay(p=>({...p,mini:false,baseElapsed:0}));
+      onResume={(secs)=>{
+        // 暂停模式：从当前secs继续全屏；缩小模式：回到全屏继续
+        setTimerOverlay(p=>({...p,mini:false,baseElapsed:secs,paused:false}));
       }}
-      onFinish={()=>{
-        // 完成：保存全部已计时时长
-        timerOverlay.onStop(timerOverlay.pausedSecs||0);
+      onFinish={(secs)=>{
+        timerOverlay.onStop(secs);
         setTimerOverlay(null);
       }}
       onBack={()=>{
-        // 返回：打开编辑页，保留已计时状态
         setTimerOverlay(null);
         if(timerOverlay.evId) setModal({t:"edit",ev:events.find(e=>e.id===timerOverlay.evId)||{id:timerOverlay.evId},instanceDate:null});
       }}
@@ -3502,6 +3506,6 @@ export default function App(){
     {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>{setTimerOverlay(info);setModal(null);}}/>}
     {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} initialChildId={modal.childId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
-    {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs)=>setTimerOverlay(p=>({...p,mini:true,pausedSecs:secs}))}/>}
+    {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs,paused)=>setTimerOverlay(p=>({...p,mini:true,pausedSecs:secs,paused}))}/>}
   </div>;
 }
