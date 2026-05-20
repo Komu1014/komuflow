@@ -3232,15 +3232,13 @@ function MiniTimerBar({info, onResume, onFinish, onBack}){
         <div style={{fontSize:14,fontWeight:600,color:"#111",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"未命名任务"}</div>
         <div style={{fontSize:11,color:"#8e8e93",marginTop:1}}>{info.paused?"已暂停":"计时中"} · {fmtSecs(secs)}</div>
       </div>
-      <span style={{fontSize:12,color:"#8e8e93"}}>{expanded?"收起":"操作"}</span>
+      <span style={{fontSize:12,color:"#8e8e93"}}>{expanded?"▲":"▼"}</span>
     </div>
     {expanded&&<div style={{display:"flex",gap:8,padding:"0 14px 12px"}}>
       <button onClick={()=>{setExpanded(false);onResume(secs);}}
         style={{flex:1,padding:"10px",border:"none",borderRadius:10,background:"#333",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>{info.paused?"开始":"全屏"}</button>
       <button onClick={()=>{setExpanded(false);onFinish(secs);}}
         style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#333",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"center"}}>完成</button>
-      <button onClick={()=>{setExpanded(false);onBack();}}
-        style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#8e8e93",fontSize:13,cursor:"pointer",textAlign:"center"}}>返回</button>
     </div>}
   </div>;
 }
