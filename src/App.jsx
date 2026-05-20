@@ -3273,7 +3273,7 @@ function FullscreenTimer({info, onDismiss, onMini}){
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         完成
       </button>
-      <button onClick={()=>{ onMini(secs,true); onDismiss(); }}
+      <button onClick={()=>onMini(secs,true)}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
       </button>
