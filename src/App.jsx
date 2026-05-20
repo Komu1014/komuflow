@@ -1175,56 +1175,55 @@ function EventForm({ev,instanceDate,labels,onSave,onDelete,onRepeatDelete,onClos
 
     {tab==="timer"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,padding:"10px 0"}}>
       <div style={{fontSize:58,fontWeight:100,letterSpacing:3,color:"#111",fontVariantNumeric:"tabular-nums"}}>{fmtSecs(elapsed)}</div>
-      {/* Row 1: 应用时长（左主）+ 开始/暂停（右次） */}
       <div style={{display:"flex",gap:10}}>
         {elapsed>0&&!running&&<button onClick={()=>{
-          stopAndApply();
-          setTimeout(()=>{
-            if(!form.title.trim()) return;
-            const saved={...form,timerSecs:elapsed};
-            if(!hasTime){saved.startTime=null;saved.endTime=null;saved.allDay=false;}
-            saved.done=true;
-            if(!isNew&&ev?.repeat&&ev.repeat!=="none"){setPendingSave(saved);setShowRepeatSave(true);}
-            else onSave(saved);
-          },50);
-        }} style={{padding:"12px 28px",borderRadius:30,border:"none",background:"#333",color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>应用时长</button>}
+          // 应用时长：保存已完成记录
+          const elapsedMins=Math.max(1,Math.round(elapsed/60));
+          let startM=form.startTime?parseMins(form.startTime):(()=>{const now=new Date();const nowM=now.getHours()*60+now.getMinutes();return((nowM-elapsedMins)+1440)%1440;})();
+          const startTime=form.startTime||`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
+          const endM=(startM+elapsedMins)%1440;
+          const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+          const saved={...form,timerSecs:elapsed,startTime,endTime,done:true,_skipAutoDone:true};
+          if(!saved.title.trim()) saved.title="未命名任务";
+          onSave(saved);
+        }} style={{padding:"12px 28px",borderRadius:30,border:"none",background:"#333",color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>完成</button>}
         <button onClick={()=>{
           const next=!running;
-          setRunning(next);
-          if(next&&onTimerActive){
-            onTimerActive({
-              title:form.title,
-              startTime:form.startTime,
-              baseElapsed:elapsed,
-              onPause:(s)=>{setRunning(false);setElapsed(s);baseElapsedRef.current=s;},
-              onStop:(secs)=>{
-                setRunning(false);
-                const elapsedMins=Math.max(1,Math.round(secs/60));
-                let startM=form.startTime?parseMins(form.startTime):(()=>{const now=new Date();const nowM=now.getHours()*60+now.getMinutes();return((nowM-elapsedMins)+1440)%1440;})();
-                const startTime=form.startTime||`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
-                const endM=(startM+elapsedMins)%1440;
-                const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
-                const saved={...form,timerSecs:secs,startTime,endTime,done:true,_skipAutoDone:true};
-                if(!saved.title.trim()) saved.title="未命名任务";
-                onSave(saved);
-              },
-              onLater:(fsecs)=>{
-                const secs=fsecs!=null?fsecs:elapsed;
-                setRunning(false);
-                onSave(computeTimedSave(secs));
-              },
-            });
+          if(next){
+            // 开始：进入全屏
+            setRunning(true);
+            if(onTimerActive){
+              onTimerActive({
+                evId:form.id,
+                title:form.title,
+                startTime:form.startTime,
+                baseElapsed:elapsed,
+                onPause:(secs)=>{
+                  setRunning(false);
+                  setElapsed(secs);
+                  baseElapsedRef.current=secs;
+                },
+                onStop:(secs)=>{
+                  setRunning(false);
+                  const elapsedMins=Math.max(1,Math.round(secs/60));
+                  let startM=form.startTime?parseMins(form.startTime):(()=>{const now=new Date();const nowM=now.getHours()*60+now.getMinutes();return((nowM-elapsedMins)+1440)%1440;})();
+                  const startTime=form.startTime||`${pad(Math.floor(startM/60))}:${pad(startM%60)}`;
+                  const endM=(startM+elapsedMins)%1440;
+                  const endTime=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+                  const saved={...form,timerSecs:secs,startTime,endTime,done:true,_skipAutoDone:true};
+                  if(!saved.title.trim()) saved.title="未命名任务";
+                  onSave(saved);
+                },
+              });
+            }
+          } else {
+            setRunning(false);
           }
         }} style={{padding:"12px 34px",border:"none",borderRadius:30,background:running?"#555":"rgba(0,0,0,0.08)",color:running?"white":"#333",fontSize:16,fontWeight:700,cursor:"pointer"}}>{running?"暂停":"开始"}</button>
+        {elapsed>0&&!running&&<button onClick={()=>{setElapsed(0);baseElapsedRef.current=0;setForm(p=>({...p,timerSecs:0}));}} style={{padding:"12px 16px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:13,cursor:"pointer"}}>重置</button>}
       </div>
-      {/* Row 2: 重置 + 稍后继续（仅暂停后显示） */}
-      {elapsed>0&&!running&&<div style={{display:"flex",gap:10}}>
-        <button onClick={()=>{setRunning(false);setElapsed(0);baseElapsedRef.current=0;setForm(p=>({...p,timerSecs:0}));}} style={{padding:"9px 20px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#666",fontSize:13,cursor:"pointer"}}>重置</button>
-        {!timerApplied&&<button onClick={()=>onSave(computeTimedSave(elapsed))} style={{padding:"9px 20px",borderRadius:30,border:"1.5px solid #e5e7eb",background:"white",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>稍后继续</button>}
-      </div>}
       {elapsed>0&&<div style={{background:"#f2f2f7",borderRadius:12,padding:"10px 22px",textAlign:"center"}}>
         <div style={{fontSize:14,color:"#333",fontWeight:700}}>已计时 {fmtSecs(elapsed)}</div>
-        <div style={{fontSize:12,color:"#8e8e93",marginTop:2}}>{timerApplied?"时长已应用，正在保存...":"点击「应用时长」将记录并保存"}</div>
       </div>}
       {form.startTime&&<div style={{fontSize:12,color:"#8e8e93"}}>开始时间：{form.startTime} → {form.endTime||"—"}</div>}
     </div>}
@@ -3213,20 +3212,25 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
 }
 
 /* ══════ MINI TIMER BAR (in layout flow, no overlap) ══════ */
-function MiniTimerBar({info, onExpand}){
-  const [secs,setSecs]=useState(info.startSecs||0);
-  const startTsRef=useRef(Date.now()-(info.startSecs||0)*1000);
-  const rafRef=useRef();
-  useEffect(()=>{
-    const tick=()=>{setSecs(Math.floor((Date.now()-startTsRef.current)/1000));rafRef.current=requestAnimationFrame(tick);};
-    rafRef.current=requestAnimationFrame(tick);
-    return()=>cancelAnimationFrame(rafRef.current);
-  },[]);
-  return <div style={{background:"#1a1a1a",padding:"9px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0,cursor:"pointer"}} onClick={onExpand}>
-    <div style={{width:7,height:7,borderRadius:"50%",background:"#FF6B6B",flexShrink:0,animation:"timerPulse 1.5s infinite"}}/>
-    <span style={{fontSize:13,color:"rgba(255,255,255,0.55)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
-    <span style={{fontSize:15,fontWeight:300,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:0.5}}>{fmtSecs(secs)}</span>
-    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>点击展开 ›</span>
+function MiniTimerBar({info, onExpand, onResume, onFinish, onBack}){
+  const [expanded, setExpanded]=useState(false);
+  return <div style={{background:"#1a1a1a",flexShrink:0}}>
+    {/* Collapsed bar */}
+    <div style={{padding:"9px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setExpanded(p=>!p)}>
+      <div style={{width:7,height:7,borderRadius:"50%",background:"#aaa",flexShrink:0}}/>
+      <span style={{fontSize:13,color:"rgba(255,255,255,0.55)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
+      <span style={{fontSize:15,fontWeight:300,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:0.5}}>{fmtSecs(info.pausedSecs||0)}</span>
+      <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{expanded?"▲":"▼"}</span>
+    </div>
+    {/* Expanded actions */}
+    {expanded&&<div style={{padding:"10px 16px 14px",display:"flex",gap:10,justifyContent:"center"}}>
+      <button onClick={()=>{setExpanded(false);onResume();}}
+        style={{padding:"10px 24px",border:"none",borderRadius:24,background:"white",color:"#111",fontSize:14,fontWeight:700,cursor:"pointer"}}>开始</button>
+      <button onClick={()=>{setExpanded(false);onFinish();}}
+        style={{padding:"10px 24px",border:"none",borderRadius:24,background:"rgba(255,255,255,0.15)",color:"white",fontSize:14,fontWeight:600,cursor:"pointer"}}>完成</button>
+      <button onClick={()=>{setExpanded(false);onBack();}}
+        style={{padding:"10px 24px",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:24,background:"transparent",color:"rgba(255,255,255,0.5)",fontSize:14,cursor:"pointer"}}>返回</button>
+    </div>}
   </div>;
 }
 
@@ -3256,23 +3260,17 @@ function FullscreenTimer({info, onDismiss, onMini}){
     <div style={{display:"flex",gap:14,marginBottom:16}}>
       <button onClick={()=>{ info.onStop(secs); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
-        结束
+        完成
       </button>
-      <button onClick={()=>{ info.onPause(secs); onDismiss(); }}
+      <button onClick={()=>{ info.onPause(secs); onMini(secs); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
       </button>
     </div>
-    <div style={{display:"flex",gap:12}}>
-      <button onClick={()=>onMini(secs)}
-        style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
-        缩小
-      </button>
-      <button onClick={()=>{ info.onLater(secs); onDismiss(); }}
-        style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
-        稍后继续
-      </button>
-    </div>
+    <button onClick={()=>onMini(secs)}
+      style={{padding:"10px 22px",border:"1.5px solid rgba(255,255,255,0.18)",borderRadius:32,background:"transparent",color:"rgba(255,255,255,0.45)",fontSize:13,cursor:"pointer"}}>
+      缩小
+    </button>
   </div>;
 }
 
@@ -3462,7 +3460,26 @@ export default function App(){
   return <div style={{fontFamily:"-apple-system,'Helvetica Neue',sans-serif",position:"fixed",inset:0,display:"flex",flexDirection:"column",overflow:"hidden",background:"white",textAlign:"left"}}>
     <style>{`html,body{margin:0;padding:0;height:100%;overflow:hidden;}*{box-sizing:border-box;text-align:left;}body,div,span,p,button,input,textarea,select{line-height:1.4;}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:3px;}input[type=date],input[type=time]{-webkit-appearance:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}input::placeholder,textarea::placeholder{color:#c0c0c0!important;-webkit-text-fill-color:#c0c0c0!important;}@media(max-width:767px){input,textarea,select{font-size:16px!important;-webkit-text-size-adjust:100%;}}button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;-webkit-text-fill-color:unset;text-align:left;}input,textarea{color:#111;-webkit-text-fill-color:#111;}select{color:#333;-webkit-text-fill-color:#333;}.day-date-num{font-size:30px;font-weight:700;color:#111;letter-spacing:-1px;}@media(min-width:768px){.day-date-num{font-size:22px;letter-spacing:-0.5px;}}.form-date-input{font-size:13px!important;}@media(min-width:768px){.form-date-input{font-size:11px!important;}}.time-picker-selected{font-size:18px!important;}@media(min-width:768px){.time-picker-selected{font-size:13px!important;}}.time-picker-unselected{font-size:14px!important;}@media(min-width:768px){.time-picker-unselected{font-size:10px!important;}}.color-hex-input{font-size:16px!important;}@media(min-width:768px){.color-hex-input{font-size:11px!important;}}.notes-textarea{font-size:14px!important;}@media(max-width:767px){.notes-textarea{font-size:16px!important;}}.label-sort-item{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
     {/* Mini timer bar — in layout flow, pushes content down */}
-    {timerOverlay?.mini&&<MiniTimerBar info={timerOverlay} onExpand={()=>setTimerOverlay(p=>({...p,mini:false}))}/>}
+    {timerOverlay?.mini&&<MiniTimerBar
+      info={timerOverlay}
+      onResume={()=>{
+        // 开始：将暂停前的时段作为已完成记录保存，然后重新开启全屏从0开始
+        const pausedSecs=timerOverlay.pausedSecs||0;
+        if(pausedSecs>0) timerOverlay.onStop(pausedSecs);
+        // Reset elapsed and show fullscreen again
+        setTimerOverlay(p=>({...p,mini:false,baseElapsed:0}));
+      }}
+      onFinish={()=>{
+        // 完成：保存全部已计时时长
+        timerOverlay.onStop(timerOverlay.pausedSecs||0);
+        setTimerOverlay(null);
+      }}
+      onBack={()=>{
+        // 返回：打开编辑页，保留已计时状态
+        setTimerOverlay(null);
+        if(timerOverlay.evId) setModal({t:"edit",ev:events.find(e=>e.id===timerOverlay.evId)||{id:timerOverlay.evId},instanceDate:null});
+      }}
+    />}
     {desk
       ? <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
           <Sidebar tab={tab} setTab={setTab} labels={labels} onManage={(labelId,childId)=>setModal({t:"labels",labelId,childId})} onReorder={ls=>setLabels(ls)} onReorderChildren={(parentId,newChildren)=>setLabels(prev=>prev.map(l=>l.id===parentId?{...l,children:newChildren}:l))}/>
@@ -3483,6 +3500,6 @@ export default function App(){
     {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>setTimerOverlay(info)}/>}
     {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} initialChildId={modal.childId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
-    {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs)=>setTimerOverlay(p=>({...p,mini:true,startSecs:secs}))}/>}
+    {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs)=>setTimerOverlay(p=>({...p,mini:true,pausedSecs:secs}))}/>}
   </div>;
 }
