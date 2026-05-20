@@ -3212,24 +3212,26 @@ function Sidebar({tab,setTab,labels,onManage,onReorder,onReorderChildren}){
 }
 
 /* ══════ MINI TIMER BAR (in layout flow, no overlap) ══════ */
-function MiniTimerBar({info, onExpand, onResume, onFinish, onBack}){
+function MiniTimerBar({info, onResume, onFinish, onBack}){
   const [expanded, setExpanded]=useState(false);
-  return <div style={{background:"#1a1a1a",flexShrink:0}}>
-    {/* Collapsed bar */}
-    <div style={{padding:"9px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setExpanded(p=>!p)}>
-      <div style={{width:7,height:7,borderRadius:"50%",background:"#aaa",flexShrink:0}}/>
-      <span style={{fontSize:13,color:"rgba(255,255,255,0.55)",flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"计时中"}</span>
-      <span style={{fontSize:15,fontWeight:300,color:"white",fontVariantNumeric:"tabular-nums",letterSpacing:0.5}}>{fmtSecs(info.pausedSecs||0)}</span>
-      <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{expanded?"▲":"▼"}</span>
+  return <div style={{margin:"10px 16px 0",background:"white",borderRadius:14,border:"1px solid #ebebeb",overflow:"hidden",flexShrink:0}}>
+    {/* Header row */}
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",cursor:"pointer"}} onClick={()=>setExpanded(p=>!p)}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:"#8e8e93",flexShrink:0}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:14,fontWeight:600,color:"#111",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{info.title||"未命名任务"}</div>
+        <div style={{fontSize:11,color:"#8e8e93",marginTop:1}}>已暂停 · {fmtSecs(info.pausedSecs||0)}</div>
+      </div>
+      <span style={{fontSize:12,color:"#8e8e93"}}>{expanded?"收起":"操作"}</span>
     </div>
     {/* Expanded actions */}
-    {expanded&&<div style={{padding:"10px 16px 14px",display:"flex",gap:10,justifyContent:"center"}}>
+    {expanded&&<div style={{display:"flex",gap:8,padding:"0 14px 12px"}}>
       <button onClick={()=>{setExpanded(false);onResume();}}
-        style={{padding:"10px 24px",border:"none",borderRadius:24,background:"white",color:"#111",fontSize:14,fontWeight:700,cursor:"pointer"}}>开始</button>
+        style={{flex:1,padding:"10px",border:"none",borderRadius:10,background:"#333",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>开始</button>
       <button onClick={()=>{setExpanded(false);onFinish();}}
-        style={{padding:"10px 24px",border:"none",borderRadius:24,background:"rgba(255,255,255,0.15)",color:"white",fontSize:14,fontWeight:600,cursor:"pointer"}}>完成</button>
+        style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#333",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"center"}}>完成</button>
       <button onClick={()=>{setExpanded(false);onBack();}}
-        style={{padding:"10px 24px",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:24,background:"transparent",color:"rgba(255,255,255,0.5)",fontSize:14,cursor:"pointer"}}>返回</button>
+        style={{flex:1,padding:"10px",border:"1.5px solid #e5e7eb",borderRadius:10,background:"white",color:"#8e8e93",fontSize:13,cursor:"pointer",textAlign:"center"}}>返回</button>
     </div>}
   </div>;
 }
@@ -3262,7 +3264,7 @@ function FullscreenTimer({info, onDismiss, onMini}){
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"white",color:"#111",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         完成
       </button>
-      <button onClick={()=>{ info.onPause(secs); onMini(secs); onDismiss(); }}
+      <button onClick={()=>{ onMini(secs); onDismiss(); }}
         style={{padding:"15px 40px",border:"none",borderRadius:32,background:"rgba(255,255,255,0.12)",color:"white",fontSize:17,fontWeight:700,cursor:"pointer"}}>
         暂停
       </button>
