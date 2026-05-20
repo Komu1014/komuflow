@@ -3498,8 +3498,8 @@ export default function App(){
         </div>
       : <><div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>{page}</div>{mobileNav}</>
     }
-    {modal?.t==="add"&&<EventFormModal title="新建事项" onClose={()=>setModal(null)} labels={labels} onSave={saveEv} onDelete={delEv} onTimerActive={info=>setTimerOverlay(info)} initialDate={modal.date} initialHour={modal.hour}/>}
-    {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>setTimerOverlay(info)}/>}
+    {modal?.t==="add"&&<EventFormModal title="新建事项" onClose={()=>setModal(null)} labels={labels} onSave={saveEv} onDelete={delEv} onTimerActive={info=>{setTimerOverlay(info);setModal(null);}} initialDate={modal.date} initialHour={modal.hour}/>}
+    {modal?.t==="edit"&&<EventFormModal title="编辑事项" onClose={()=>setModal(null)} ev={modal.ev} instanceDate={modal.instanceDate} labels={labels} onSave={saveEv} onDelete={delEv} onRepeatDelete={inlineRepeatDelete} onTimerActive={info=>{setTimerOverlay(info);setModal(null);}}/>}
     {modal?.t==="labels"&&<LabelManagerModal onClose={()=>setModal(null)} labels={labels} initialLabelId={modal.labelId} initialChildId={modal.childId} onSave={(ls,noClose)=>{setLabels(ls);if(!noClose)setModal(null);}}/>}
     {repeatDel&&<RepeatDeleteModal ev={repeatDel.ev} instanceDate={repeatDel.instanceDate} onClose={()=>setRepeatDel(null)} onDelete={execRepeatDelete}/>}
     {timerOverlay&&!timerOverlay.mini&&<FullscreenTimer info={timerOverlay} onDismiss={()=>setTimerOverlay(null)} onMini={(secs)=>setTimerOverlay(p=>({...p,mini:true,pausedSecs:secs}))}/>}
